@@ -59,7 +59,7 @@ func _gui_input(event: InputEvent) -> void:
 	if event is InputEventMouseButton and event.pressed and event.button_index in [MOUSE_BUTTON_LEFT, MOUSE_BUTTON_RIGHT]:
 		if result_slot:
 			if event.button_index == MOUSE_BUTTON_LEFT:
-				world.craft_result()
+				world.craft_result(event.shift_pressed)
 			accept_event()
 			return
 		if world.player.inventory_open:

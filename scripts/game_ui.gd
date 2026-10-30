@@ -11,7 +11,13 @@ var stack_cursor = StackCursor.new()
 var cursor_visual: Control
 var cursor_icon: TextureRect
 var cursor_count: Label
+var result_press_position := Vector2.ZERO
+var result_drag_moved: bool = false
 var template_buttons: Array[Dictionary] = []
+const HELD_ORIGIN := Vector3(0.32, -0.24, -0.65)
+const HELD_ROTATION := Vector3(-18, 20, 8) * PI / 180.0
+var swing_phase: float = 0
+var swing_blend: float = 0
 var inventory = InventoryScript.new()
 var crafting = CraftingScript.new()
 var crafting_slots: Array[PanelContainer] = []
@@ -201,7 +207,7 @@ func build_crafting_ui(parent: Control) -> void:
 	crafting_grid.add_theme_constant_override("h_separation", 8)
 	crafting_grid.add_theme_constant_override("v_separation", 8)
 	side.add_child(crafting_grid)
-	side.add_child(label("↓  RESULTAT (klicka)", 16))
+	side.add_child(label("↓  RESULTAT (dra / shift: alla)", 16))
 	crafting_output = InventorySlot.new()
 	crafting_output.world = self
 	crafting_output.result_slot = true
@@ -232,7 +238,7 @@ func rebuild_crafting_slots() -> void:
 	crafting_output.slot_index = 32 + crafting.slots.size()
 	crafting_title.text = "ARBETSBÄNK  3 × 3" if crafting.width == 3 else "TILLVERKA  2 × 2"
 	inventory_title.text = "ARBETSBÄNK OCH INVENTARIUM" if crafting.width == 3 else "FÖREMÅL — 32 platser"
-	crafting_help.text = "Välj en receptmall till höger.\nKlicka resultatet för att tillverka." if crafting.width == 3 else "1 stam → 4 träklossar\n2 klossar på höjden → 4 pinnar\n4 klossar i fyrkant → arbetsbänk"
+	crafting_help.text = "Välj en receptmall till höger.\nDra resultatet till en ledig plats." if crafting.width == 3 else "1 stam → 4 träklossar\n2 klossar på höjden → 4 pinnar\n4 klossar i fyrkant → arbetsbänk"
 	crafting_status.text = "Lyft en stapel och håll vänster\nför att fördela över flera rutor."
 
 func build_cursor_visual() -> void:
@@ -297,7 +303,7 @@ func build_recipe_list(parent: Control) -> void:
 func fill_recipe_template(recipe: Dictionary) -> void:
 	stack_cursor.bind(inventory, crafting)
 	if stack_cursor.fill_template(recipe):
-		crafting_status.text = "Ingredienserna är på plats.\nKlicka resultatet för att tillverka."
+		crafting_status.text = "Ingredienserna är på plats.\nDra resultatet till en ledig plats."
 	else:
 		crafting_status.text = "Resurser eller ledigt utrymme saknas."
 	update_counter()
@@ -306,9 +312,11 @@ func update_cursor_visual() -> void:
 	if not is_instance_valid(cursor_visual):
 		return
 	cursor_visual.visible = player.inventory_open and stack_cursor.held.count > 0
-	cursor_visual.position = get_viewport().get_mouse_position() + Vector2(12, 12)
+	cursor_visual.position = get_viewport().get_mouse_position() - cursor_icon.size * 0.5
 	cursor_icon.texture = item_icons.get(stack_cursor.held.kind)
-	cursor_count.text = str(stack_cursor.held.count)
+	var plan: Dictionary = stack_cursor.preview()
+	cursor_count.text = str(plan.held.count) if plan.held.count > 0 else ""
+	cursor_icon.modulate.a = 0.65 if stack_cursor.left_down and plan.held.count == 0 else 1.0
 
 func slot_at_pointer(point: Vector2) -> int:
 	for slot in inventory_slots + crafting_slots:
@@ -326,11 +334,16 @@ func handle_inventory_event(event: InputEvent) -> bool:
 		return false
 	stack_cursor.bind(inventory, crafting)
 	if event is InputEventMouseMotion:
+		if stack_cursor.result_drag and event.position.distance_to(result_press_position) > 6:
+			result_drag_moved = true
 		stack_cursor.touch(slot_at_pointer(event.position))
 		refresh_slots()
 	elif event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT and not event.pressed and stack_cursor.left_down:
 		stack_cursor.touch(slot_at_pointer(event.position))
+		var cancelled_result: bool = stack_cursor.result_drag and stack_cursor.painted.is_empty() and result_drag_moved
 		stack_cursor.finish()
+		if cancelled_result and not stack_cursor.store_held():
+			crafting_status.text = "Inventariet är fullt. Välj en plats för resultatet."
 		update_counter()
 		return true
 	return false
@@ -340,16 +353,23 @@ func slot_data(index: int) -> Dictionary:
 		return crafting.slots[index - 32]
 	return inventory.slots[index]
 
-func craft_result() -> void:
+func craft_result(all_batches: bool = false) -> void:
 	if not player.inventory_open:
 		return
+	stack_cursor.bind(inventory, crafting)
 	var result: Dictionary = crafting.recipe()
-	if result.is_empty():
+	if stack_cursor.held.count > 0:
+		crafting_status.text = "Placera föremålen du håller först."
+	elif result.is_empty():
 		crafting_status.text = "Lägg ingredienser i tillverkningsrutorna."
-	elif crafting.craft(inventory):
-		crafting_status.text = "Tillverkade %d × %s" % [result.count, Registry.label(result.kind)]
 	else:
-		crafting_status.text = "Inte tillräckligt med plats.\nIngredienserna ligger kvar."
+		var amount: int = stack_cursor.take_result(all_batches)
+		if amount > 0:
+			result_press_position = get_viewport().get_mouse_position()
+			result_drag_moved = false
+			crafting_status.text = "Tillverkade %d × %s. Välj en plats." % [amount, Registry.label(result.kind)]
+		else:
+			crafting_status.text = "Resultatet kunde inte tillverkas."
 	move_source = -1
 	update_counter()
 
@@ -401,17 +421,19 @@ func move_inventory(source: int, destination: int) -> void:
 
 func refresh_slots() -> void:
 	stack_cursor.bind(inventory, crafting)
+	var planned: Dictionary = stack_cursor.preview().slots
 	var kind := selected_kind()
 	active_tool = kind if Registry.tool(kind) else "hand"
 	for index in range(inventory_slots.size()):
-		inventory_slots[index].refresh(inventory.slots[index], index == selected_hotbar + 24, stack_cursor.painted.has(index))
+		inventory_slots[index].refresh(planned.get(index, inventory.slots[index]), index == selected_hotbar + 24, stack_cursor.painted.has(index))
 	for index in range(hotbar_slots.size()):
-		hotbar_slots[index].refresh(inventory.slots[index + 24], index == selected_hotbar)
+		hotbar_slots[index].refresh(planned.get(index + 24, inventory.slots[index + 24]), index == selected_hotbar)
 	for index in range(crafting_slots.size()):
-		crafting_slots[index].refresh(crafting.slots[index], false, stack_cursor.painted.has(index + 32))
+		crafting_slots[index].refresh(planned.get(index + 32, crafting.slots[index]), false, stack_cursor.painted.has(index + 32))
 	if is_instance_valid(crafting_output):
 		var result: Dictionary = crafting.recipe()
 		crafting_output.refresh(result if not result.is_empty() else {"kind": "", "count": 0}, not result.is_empty())
+		crafting_output.tooltip_text += "\nDra till valfri plats. Shift: tillverka alla."
 	if is_instance_valid(hotbar):
 		hotbar.visible = not player.inventory_open
 	update_held_item()
@@ -433,8 +455,10 @@ func update_held_item() -> void:
 			held_item.free()
 		held_item = Node3D.new()
 		player.camera.add_child(held_item)
-		held_item.position = Vector3(0.32, -0.24, -0.65)
-		held_item.rotation_degrees = Vector3(-18, 20, 8)
+		held_item.position = HELD_ORIGIN
+		held_item.rotation = HELD_ROTATION
+		swing_phase = 0
+		swing_blend = 0
 		if Registry.tool(kind):
 			ItemVisuals.tool_model(held_item, kind)
 		elif kind == "torch":
@@ -461,6 +485,12 @@ func update_held_item() -> void:
 				box(held_item, Vector3(-0.033 + finger * 0.022, 0.068, 0), Vector3(0.018, 0.045, 0.045), skin)
 			var thumb := box(held_item, Vector3(-0.057, -0.005, 0), Vector3(0.035, 0.055, 0.045), skin)
 			thumb.rotation.z = -0.5
+		var arm_skin := StandardMaterial3D.new()
+		arm_skin.albedo_color = Color(0.83, 0.6, 0.42)
+		arm_skin.roughness = 0.9
+		box(held_item, Vector3(0, -0.2, 0.025), Vector3(0.075, 0.21, 0.07), arm_skin)
+		if kind != "":
+			box(held_item, Vector3(0, -0.085, 0.015), Vector3(0.085, 0.075, 0.075), arm_skin)
 		for part in held_item.find_children("*", "MeshInstance3D", true, false):
 			(part as MeshInstance3D).cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 			# Render equipment over the world so close tunnel walls cannot hide it.
@@ -472,6 +502,21 @@ func update_held_item() -> void:
 		held_kind = kind
 	if is_instance_valid(held_item):
 		held_item.visible = not player.inventory_open
+
+func update_hand_animation(delta: float, working: bool) -> void:
+	if not is_instance_valid(held_item):
+		return
+	swing_blend = move_toward(swing_blend, 1.0 if working else 0.0, delta * 7.0)
+	if working or swing_blend > 0:
+		swing_phase += delta * 11.0
+	else:
+		swing_phase = 0
+	var stroke: float = sin(swing_phase)
+	var motion := Vector3(-0.012 * (1 - cos(swing_phase)), stroke * 0.045, -0.02 * (1 - cos(swing_phase))) * swing_blend
+	var rotation_offset := Vector3(stroke * 0.23, 0, cos(swing_phase) * 0.07) * swing_blend
+	var weight: float = 1.0 - exp(-18.0 * delta)
+	held_item.position = held_item.position.lerp(HELD_ORIGIN + motion, weight)
+	held_item.rotation = held_item.rotation.lerp(HELD_ROTATION + rotation_offset, weight)
 
 func toggle_inventory(workbench: bool = false) -> void:
 	stack_cursor.bind(inventory, crafting)

@@ -9,6 +9,12 @@ const PlayerScript = preload("res://scripts/player.gd")
 var model: RefCounted
 var streamer: Node3D
 var entity_system: Node3D
+const Daylight = preload("res://scripts/core/daylight.gd")
+var daylight = Daylight.new()
+var sky_environment: Environment
+var light_elapsed: float = 1
+var daylight_target: float = 1
+var daylight_amount: float = 1
 var testing: bool = false
 var view_distance: int = 96
 var autosave_elapsed: float = 0
@@ -71,6 +77,7 @@ func create_lighting() -> void:
 	environment.fog_enabled = true
 	environment.fog_light_color = Color(0.57, 0.78, 0.93)
 	environment.fog_density = 0.002
+	sky_environment = environment
 	sky.environment = environment
 	add_child(sky)
 
@@ -83,6 +90,8 @@ func install_model(data: RefCounted, position: Vector3) -> void:
 		remove_child(entity_system)
 		entity_system.queue_free()
 	model = data
+	daylight.configure(model)
+	light_elapsed = 1
 	streamer = Streamer.new()
 	streamer.configure(model)
 	streamer.view_distance = view_distance
@@ -129,13 +138,13 @@ func snapshot() -> Dictionary:
 	entity_system.snapshot_active()
 	return {"world": model.export_state(), "player": {"position": player.position, "rotation": player.rotation, "camera": player.camera.rotation, "velocity": player.velocity}, "inventory": inventory.slots.duplicate(true), "crafting": {"width": crafting.width, "slots": crafting.slots.duplicate(true), "open": player.inventory_open}, "cursor": stack_cursor.held.duplicate(), "selected": selected_hotbar, "view_distance": view_distance}
 
-func valid_slots(slots: Variant, expected: int) -> bool:
+func valid_slots(slots: Variant, expected: int, cursor_stack: bool = false) -> bool:
 	if not slots is Array or slots.size() != expected:
 		return false
 	for slot: Variant in slots:
 		if not slot is Dictionary or not slot.has_all(["kind", "count"]):
 			return false
-		if not slot.kind is String or slot.count < 0 or slot.count > Registry.stack_limit(slot.kind):
+		if not slot.kind is String or slot.count < 0 or slot.count > Registry.stack_limit(slot.kind) * (32 if cursor_stack else 1):
 			return false
 		if slot.count > 0 and not Registry.catalog.items.has(slot.kind):
 			return false
@@ -150,7 +159,7 @@ func restore_snapshot(saved: Dictionary) -> bool:
 	if not saved.player.get("position") is Vector3:
 		return false
 	var held: Dictionary = saved.get("cursor", {"kind": "", "count": 0})
-	if not valid_slots([held], 1):
+	if not valid_slots([held], 1, true):
 		return false
 	var data := WorldData.new()
 	if not data.import_state(saved.world):
@@ -290,10 +299,12 @@ func _process(delta: float) -> void:
 	if model == null:
 		return
 	update_cursor_visual()
+	update_daylight(delta)
 	streamer.tick(player.position, delta)
 	entity_system.tick(player.position, delta)
 	var predicted: Vector3 = player.position + Vector3(player.velocity.x, 0, player.velocity.z) * 0.25
 	player.movement_blocked = not streamer.ready_at(player.position) or not streamer.ready_at(predicted)
+	update_hand_animation(delta, mining_held and mining_bar.visible and not player.paused and not player.inventory_open and not player.movement_blocked)
 	var visible_menu: bool = player.paused and not player.inventory_open
 	pause_panel.visible = visible_menu
 	if visible_menu and not menu_was_visible:
@@ -301,6 +312,16 @@ func _process(delta: float) -> void:
 	menu_was_visible = visible_menu
 	status_time = maxf(0, status_time - delta)
 	status.visible = status_time > 0
+
+func update_daylight(delta: float) -> void:
+	light_elapsed += delta
+	if light_elapsed >= 0.3:
+		light_elapsed = 0
+		daylight_target = daylight.exposure(player.camera.global_position)
+	daylight_amount = move_toward(daylight_amount, daylight_target, delta * 1.5)
+	sky_environment.ambient_light_energy = lerpf(0.012, 0.6, daylight_amount)
+	sky_environment.fog_light_color = Color(0.005, 0.006, 0.008).lerp(Color(0.57, 0.78, 0.93), daylight_amount)
+	sky_environment.fog_density = lerpf(0.012, 0.002, daylight_amount)
 
 func _physics_process(delta: float) -> void:
 	if model == null:

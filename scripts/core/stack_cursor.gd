@@ -8,6 +8,7 @@ var held: Dictionary = {"kind": "", "count": 0}
 var painted: Array[int] = []
 var left_down: bool = false
 var source: int = -1
+var result_drag: bool = false
 
 func bind(bag: RefCounted, table: RefCounted) -> void:
 	inventory = bag
@@ -24,6 +25,30 @@ func cancel_paint() -> void:
 	painted.clear()
 	left_down = false
 	source = -1
+	result_drag = false
+
+func take_result(all_batches: bool = false) -> int:
+	if held.count > 0:
+		return 0
+	var result: Dictionary = crafting.recipe()
+	if result.is_empty():
+		return 0
+	var output := Inventory.new()
+	var amount: int = crafting.craft_all(output) if all_batches else (int(result.count) if crafting.craft(output) else 0)
+	if amount > 0:
+		cancel_paint()
+		held = {"kind": result.kind, "count": amount}
+		left_down = true
+		result_drag = true
+	return amount
+
+func store_held() -> bool:
+	if held.count == 0:
+		return true
+	if not inventory.add_items(held.kind, held.count):
+		return false
+	held = {"kind": "", "count": 0}
+	return true
 
 func press(index: int, button: int, shift: bool = false) -> void:
 	if index < 0 or index >= 32 + crafting.slots.size():
@@ -68,33 +93,49 @@ func touch(index: int) -> void:
 			painted.append(index)
 
 func finish() -> void:
-	if held.count > 0 and painted.size() == 1:
-		var target := slot(painted[0])
-		if target.count > 0 and target.kind != held.kind:
-			var previous := target.duplicate()
-			target.kind = held.kind
-			target.count = held.count
-			held = previous
-			cancel_paint()
-			return
-	distribute(painted)
+	apply_distribution(distribution_plan(painted, true))
 	cancel_paint()
 
 func distribute(indices: Array[int]) -> void:
+	apply_distribution(distribution_plan(indices, false))
+
+func preview() -> Dictionary:
+	return distribution_plan(painted, true) if left_down else {"slots": {}, "held": held.duplicate()}
+
+func distribution_plan(indices: Array[int], allow_swap: bool) -> Dictionary:
+	var targets: Dictionary = {}
+	for index in indices:
+		targets[index] = slot(index).duplicate()
+	var hand := held.duplicate()
+	if allow_swap and hand.count > 0 and indices.size() == 1:
+		var target: Dictionary = targets[indices[0]]
+		if target.count > 0 and target.kind != hand.kind:
+			targets[indices[0]] = hand
+			return {"slots": targets, "held": target}
 	# Round robin gives 10 -> 3,3,2,2 in visit order, respecting stack caps.
-	while held.count > 0:
+	while hand.count > 0:
 		var placed: bool = false
 		for index in indices:
-			var target := slot(index)
-			if (target.count == 0 or target.kind == held.kind) and target.count < Registry.stack_limit(held.kind):
-				target.kind = held.kind
+			var target: Dictionary = targets[index]
+			if (target.count == 0 or target.kind == hand.kind) and target.count < Registry.stack_limit(hand.kind):
+				target.kind = hand.kind
 				target.count += 1
-				held.count -= 1
+				hand.count -= 1
 				placed = true
-				if held.count == 0:
+				if hand.count == 0:
 					break
 		if not placed:
 			break
+	if hand.count == 0:
+		hand.kind = ""
+	return {"slots": targets, "held": hand}
+
+func apply_distribution(plan: Dictionary) -> void:
+	for index: int in plan.slots:
+		var target := slot(index)
+		target.kind = plan.slots[index].kind
+		target.count = plan.slots[index].count
+	held = plan.held
 	clear_empty_hand()
 
 func clear_empty_hand() -> void:

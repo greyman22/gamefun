@@ -21,18 +21,20 @@ Den nya världen ersätter den tidigare tillfälliga lilla testbanan. Det finns 
 - **E:** inventarium (8 × 4 platser) och tillverkning (2 × 2). Vänsterklick lyfter hela stapeln till muspekaren. Klicka i en annan ruta för att lägga ned den, eller håll vänsterknappen och svep över flera rutor för jämn fördelning. Tio föremål över fyra rutor blir 3+3+2+2.
 - **Shift-vänsterklick** på en inventariestapel flyttar den till tillverkningsytan och fördelar den över kompatibla rutor. Shift-klick på tillverkningsytan flyttar stapeln tillbaka till inventariet.
 - **Högerklick i dialogen** lyfter halva stapeln (avrundat uppåt). När du redan håller något lägger högerklick ned ett exemplar i en kompatibel ruta. Samma hantering används i 2 × 2 och arbetsbänkens 3 × 3.
+- Den lyfta bilden är centrerad under muspekaren. Medan du fördelar syns föremål och preliminära antal direkt i mottagarrutorna och räknas om när fler rutor markeras. Fördelningen bekräftas när vänsterknappen släpps.
+- Under grävning och hackning rör sig armen och det hållna föremålet upp och ned. När bearbetningen avbryts återgår armen mjukt till viloläget.
 - **1–8 eller mushjul:** välj nedersta inventarieraden. Tom plats visar en hand.
 - **Esc:** pausmeny med sparning, laddning, ny värld och siktavstånd. Ange ett seed när du skapar en ny värld för att kunna återskapa samma grundlandskap.
 
 Nya föremål staplas med befintliga och fyller därefter nedersta raden från vänster till höger och sedan uppåt. När tillverkningen stängs återgår oanvända ingredienser till inventariet. Om plats saknas hålls panelen öppen utan förlust.
 
-Block som bryts loss blir små föremål på platsen, inte en direkt insättning i inventariet. De faller nedåt och ligger kvar om marken grävs bort under dem. Gå inom två meter för att plocka upp dem; det finns en kort fördröjning så att nya föremål hinner synas. Fullt inventarium lämnar föremålen kvar. Position, fallhastighet och antal sparas.
+Block som bryts loss blir små föremål på platsen, inte en direkt insättning i inventariet. De sprids även åt sidorna till närliggande rutor; högre fall ger större spridning. De ligger kvar om marken grävs bort under dem. Gå inom 1,5 meter för att plocka upp dem; det finns en kort fördröjning så att nya föremål hinner synas. Fullt inventarium lämnar föremålen kvar. Position, fallhastighet och antal sparas.
 
-En receptlista bredvid tillverkningsytan visar alla tillgängliga produkter. Klicka en mall för att automatiskt lägga in ingredienserna för en omgång. Resultatet tillverkas först när du klickar dess bild. Recept med saknade resurser eller krav på större arbetsyta är dimmade; håll pekaren över receptet för att se ingredienserna. Mallarna kan även använda material som du håller med musen eller redan har lagt i arbetsytan.
+En receptlista bredvid tillverkningsytan visar alla tillgängliga produkter. Klicka en mall för att automatiskt lägga in ingredienserna för en omgång. Ta resultatet med musen och dra det till önskad inventarieplats. Ett klick lyfter resultatet så att du även kan klicka på målplatsen. Avbruten dragning eller stängd dialog lägger det redan tillverkade resultatet i inventariet; vid fullt inventarium behålls det på musen. Recept med saknade resurser eller krav på större arbetsyta är dimmade; håll pekaren över receptet för att se ingredienserna. Mallarna kan även använda material som du håller med musen eller redan har lagt i arbetsytan.
 
 ## Värld, föremål och tillverkning
 
-Du börjar med 32 jordblock och åtta facklor. Yxa, hacka och spade ligger nära startplatsen och plockas upp inom två meter. Välj verktyget i snabbvalsraden för att använda det.
+Du börjar med 32 jordblock och åtta facklor. Yxa, hacka och spade ligger nära startplatsen och plockas upp inom 1,5 meter. Välj verktyget i snabbvalsraden för att använda det.
 
 Facklor kan hållas i handen eller placeras på golv/vägg. De ger varmt lokalt ljus och kan tas tillbaka med vänster musknapp. Trädstammar är 3–6 block höga. Kronor utan stöd vissnar efter 30–90 sekunder. Väntetider följer med sparningen och fortsätter när man spelar på andra platser, men pausas när spelet är stängt eller pausat.
 
@@ -48,7 +50,7 @@ Högerklicka arbetsbänken. Använd två pinnar ovanpå varandra och sten enligt
 - Spade: `.S. / .P. / .P.`
 - Yxa: `.SS / .PS / .P.` (även spegelvänt går bra).
 
-Klicka resultatbilden för att tillverka. Resultatet måste få plats innan ingredienser förbrukas.
+Ta resultatbilden för en omgång, eller shift-klicka för alla möjliga omgångar av samma recept. Även hela resultatet följer musen tills du placerar det. Resultatet måste få plats innan ingredienser förbrukas.
 
 ## Sparning
 
@@ -84,3 +86,5 @@ godot --headless --path . --script res://scripts/tests/interaction_tests.gd
 ```
 
 Kör samma test utan `--headless` för att dessutom testa riktig musinmatning i båda dialogerna. Hållna musstaplar ingår i sparningen och återgår till inventariet när panelen stängs.
+
+Dagsljus i tunnlar avtar med avståndet genom fria passager till en öppning mot himlen. Djupa eller slutna gångar har bara ett mycket svagt bakgrundsljus. Facklor lyser fortfarande lokalt, och ljuset anpassas när man gräver eller bygger igen en öppning.

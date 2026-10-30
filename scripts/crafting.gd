@@ -52,6 +52,24 @@ func craft(inventory: RefCounted) -> bool:
 			slots[index].kind = ""
 	return true
 
+func craft_all(inventory: RefCounted) -> int:
+	# Lock this recipe before consuming anything; leftovers may form another recipe.
+	var result := recipe()
+	if result.is_empty():
+		return 0
+	var batches: int = 2147483647
+	for index in result.inputs:
+		batches = mini(batches, slots[index].count)
+	while batches > 0 and not inventory.can_add(result.kind, batches * result.count):
+		batches -= 1
+	if batches == 0 or not inventory.add_items(result.kind, batches * result.count):
+		return 0
+	for index in result.inputs:
+		slots[index].count -= batches
+		if slots[index].count == 0:
+			slots[index].kind = ""
+	return batches * result.count
+
 func return_ingredients(inventory: RefCounted) -> bool:
 	# Preflight every cell together so a full bag cannot lose ingredients.
 	var restored = inventory.get_script().new()

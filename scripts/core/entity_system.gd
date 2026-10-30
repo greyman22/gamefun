@@ -100,7 +100,7 @@ func collect(position: Vector3, inventory: RefCounted) -> bool:
 		if not model.entities.has(id):
 			continue
 		var record: Dictionary = model.entities[id]
-		if record.type == "pickup" and model.game_time >= float(record.get("ready_at", 0)) and position.distance_to(record.position) <= 2:
+		if record.type == "pickup" and model.game_time >= float(record.get("ready_at", 0)) and position.distance_to(record.position) <= 1.5:
 			var remaining: int = int(record.get("count", 1))
 			while remaining > 0 and inventory.add_item(record.kind):
 				remaining -= 1
@@ -113,7 +113,10 @@ func collect(position: Vector3, inventory: RefCounted) -> bool:
 
 func spawn_drop(kind: String, position: Vector3, count: int = 1) -> String:
 	var id: String = "drop_%d_%d" % [Time.get_ticks_usec(), randi()]
-	model.entities[id] = {"type": "pickup", "kind": kind, "position": position, "count": count, "ready_at": model.game_time + 0.5, "state": {"falling": true, "velocity_y": 0.0}}
+	# A small sideways impulse carries high drops farther during their longer flight.
+	var angle: float = randf() * TAU
+	var speed: float = randf_range(1.0, 1.8)
+	model.entities[id] = {"type": "pickup", "kind": kind, "position": position, "count": count, "ready_at": model.game_time + 0.5, "state": {"falling": true, "velocity_y": 0.0, "velocity_x": cos(angle) * speed, "velocity_z": sin(angle) * speed}}
 	elapsed = 1
 	return id
 
@@ -126,19 +129,43 @@ func simulate_drops(delta: float) -> void:
 			continue
 		var position: Vector3 = record.position
 		var velocity: float = maxf(-30, float(record.state.get("velocity_y", 0)) - 18 * delta)
-		var distance: float = -velocity * delta
-		var steps: int = maxi(1, ceili(distance / 0.1))
+		var sideways := Vector3(float(record.state.get("velocity_x", 0)), 0, float(record.state.get("velocity_z", 0)))
+		var movement := Vector3(sideways.x, velocity, sideways.z) * delta
+		var steps: int = maxi(1, ceili(movement.length() / 0.1))
 		for step in range(steps):
-			var proposed: float = position.y - distance / steps
-			var cell := Vector3i(floori(position.x), floori(proposed - 0.125), floori(position.z))
-			if Registry.cube(model.block(cell)):
-				position.y = cell.y + 1.125
+			for axis in [0, 2]:
+				var proposed: Vector3 = position
+				proposed[axis] += sideways[axis] * delta / steps
+				if drop_overlaps_block(proposed):
+					sideways[axis] = 0
+				else:
+					position = proposed
+			var proposed_y: float = position.y + velocity * delta / steps
+			var floor_top: float = -INF
+			for x in [-0.124, 0.124]:
+				for z in [-0.124, 0.124]:
+					var cell := Vector3i(floori(position.x + x), floori(proposed_y - 0.125), floori(position.z + z))
+					if Registry.cube(model.block(cell)):
+						floor_top = maxf(floor_top, cell.y + 1.125)
+			if floor_top > -INF:
+				position.y = floor_top
 				velocity = 0
+				sideways = Vector3.ZERO
 				break
-			position.y = proposed
+			position.y = proposed_y
+		record.state.velocity_x = sideways.x
+		record.state.velocity_z = sideways.z
 		record.position = position
 		record.state.velocity_y = velocity
 		active[id].position = position
+
+func drop_overlaps_block(position: Vector3) -> bool:
+	for x in [-0.124, 0.124]:
+		for y in [-0.124, 0.124]:
+			for z in [-0.124, 0.124]:
+				if Registry.cube(model.block(Vector3i(floori(position.x + x), floori(position.y + y), floori(position.z + z)))):
+					return true
+	return false
 
 func snapshot_active() -> void:
 	for id: String in active:
