@@ -1,0 +1,36 @@
+{
+  "version": 1,
+  "blocks": {
+    "air": {"id": 0, "name": "Luft", "shape": "none", "color": "000000"},
+    "stone": {"id": 1, "name": "Stenblock", "color": "88939e", "tool": "pickaxe", "requires_tool_for_drop": true},
+    "dirt": {"id": 2, "name": "Jordblock", "color": "88603b", "tool": "shovel", "grass": true},
+    "wood": {"id": 3, "name": "Trädstam", "color": "986032", "tool": "axe"},
+    "foliage": {"id": 4, "name": "Grenverk", "color": "386c25", "tool": "axe", "drop": false},
+    "planks": {"id": 5, "name": "Träkloss", "color": "bf925c", "tool": "axe"},
+    "workbench": {"id": 6, "name": "Arbetsbänk", "color": "906336", "tool": "axe", "interaction": "crafting"},
+    "bedrock": {"id": 7, "name": "Berggrund", "color": "303940", "breakable": false, "drop": false},
+    "torch": {"id": 8, "name": "Fackla", "shape": "torch", "color": "ffad41", "seconds": 0.3}
+  },
+  "items": {
+    "stone": {"name": "Stenblock", "block": "stone", "stack": 64},
+    "dirt": {"name": "Jordblock", "block": "dirt", "stack": 64},
+    "wood": {"name": "Trädstam", "block": "wood", "stack": 64},
+    "planks": {"name": "Träkloss", "block": "planks", "stack": 64},
+    "workbench": {"name": "Arbetsbänk", "block": "workbench", "stack": 64},
+    "torch": {"name": "Fackla", "block": "torch", "stack": 64},
+    "stick": {"name": "Träpinne", "stack": 64},
+    "axe": {"name": "Yxa", "tool": true, "stack": 64},
+    "pickaxe": {"name": "Hacka", "tool": true, "stack": 64},
+    "shovel": {"name": "Spade", "tool": true, "stack": 64}
+  },
+  "recipes": [
+    {"width": 2, "pattern": "wood", "kind": "planks", "count": 4},
+    {"width": 2, "pattern": "planks/planks", "kind": "stick", "count": 4},
+    {"width": 2, "pattern": "planks,planks/planks,planks", "kind": "workbench", "count": 1},
+    {"width": 3, "pattern": "stone,stone,stone/.,stick,./.,stick,.", "kind": "pickaxe", "count": 1},
+    {"width": 3, "pattern": "stone/stick/stick", "kind": "shovel", "count": 1},
+    {"width": 3, "pattern": "stone,stone/stick,stone/stick,.", "kind": "axe", "count": 1},
+    {"width": 3, "pattern": "stone,stone/stone,stick/.,stick", "kind": "axe", "count": 1}
+  ],
+  "actors": {"pickup": {"active_distance": 32}, "torch": {"active_distance": 24}, "monster": {"active_distance": 48, "reserved": true}}
+}
