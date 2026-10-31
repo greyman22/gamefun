@@ -28,6 +28,8 @@ static func install(definitions: Dictionary) -> bool:
 		var item: Dictionary = definitions.items[name]
 		if item.has("block") and not definitions.blocks.has(item.block):
 			return false
+		if item.get("tool", false) and int(item.get("max_uses", 100)) <= 0:
+			return false
 		if int(item.get("stack", 64)) < 1:
 			return false
 	# These IDs form generator version 1's stable terrain vocabulary.
@@ -65,7 +67,7 @@ static func tool(kind_name: String) -> bool:
 	return catalog.items.get(kind_name, {}).get("tool", false)
 
 static func stack_limit(kind_name: String) -> int:
-	return int(catalog.items.get(kind_name, {}).get("stack", 64))
+	return 1 if tool(kind_name) else int(catalog.items.get(kind_name, {}).get("stack", 64))
 
 static func seconds(tool_name: String, kind_name: String) -> float:
 	if not breakable(kind_name):
@@ -83,3 +85,33 @@ static func tile(value: int, normal: Vector3i) -> int:
 
 static func saved_ids() -> Dictionary:
 	return by_id.duplicate()
+
+static func durability_max(kind_name: String) -> int:
+	return int(catalog.items.get(kind_name, {}).get("max_uses", 100))
+
+static func remaining_uses(slot: Dictionary) -> int:
+	return int(slot.get("durability", slot.get("max_durability", durability_max(slot.kind))))
+
+static func stack(kind_name: String, count: int = 1, source: Dictionary = {}) -> Dictionary:
+	var result: Dictionary = source.duplicate(true)
+	result.kind = kind_name
+	result.count = count
+	if tool(kind_name):
+		result.max_durability = int(source.get("max_durability", durability_max(kind_name)))
+		result.durability = int(source.get("durability", result.max_durability))
+	return result
+
+static func assign_slot(target: Dictionary, source: Dictionary) -> void:
+	var copy: Dictionary = source.duplicate(true)
+	target.clear()
+	target.merge(copy)
+
+static func clear_slot(target: Dictionary) -> void:
+	target.clear()
+	target.merge({"kind": "", "count": 0})
+
+static func fill_slot(target: Dictionary, source: Dictionary, amount: int) -> void:
+	var total: int = int(target.count) + amount
+	if target.count == 0:
+		assign_slot(target, source)
+	target.count = total

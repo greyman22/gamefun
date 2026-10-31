@@ -58,24 +58,48 @@ static func read_file(path: String) -> Dictionary:
 		return {}
 	return value
 
+static func read_roots(root_path: String) -> Array[String]:
+	var result: Array[String] = [root_path]
+	if root_path == ROOT:
+		# The display name changed; retain read access to the original user-data folder.
+		var legacy: String = OS.get_user_data_dir().get_base_dir().path_join("GameFun – Samlarängen").path_join("worlds")
+		if DirAccess.dir_exists_absolute(legacy):
+			result.append(legacy)
+	return result
+
 static func load_world(id: String, root_path: String = ROOT) -> Dictionary:
 	if not valid_id(id):
 		return {}
-	var path: String = root_path.path_join(id).path_join("world.save")
-	var snapshot := read_file(path)
-	return read_file(path + ".backup") if snapshot.is_empty() else snapshot
+	for root in read_roots(root_path):
+		var path: String = root.path_join(id).path_join("world.save")
+		var snapshot := read_file(path)
+		if snapshot.is_empty():
+			snapshot = read_file(path + ".backup")
+		if not snapshot.is_empty():
+			return snapshot
+	return {}
 
 static func last_id(root_path: String = ROOT) -> String:
-	var path: String = root_path.path_join("last.txt")
-	return FileAccess.get_file_as_string(path).strip_edges() if FileAccess.file_exists(path) else ""
+	for root in read_roots(root_path):
+		var path: String = root.path_join("last.txt")
+		if FileAccess.file_exists(path):
+			var id: String = FileAccess.get_file_as_string(path).strip_edges()
+			if valid_id(id):
+				return id
+	return ""
 
 static func worlds(root_path: String = ROOT) -> Array[Dictionary]:
 	var result: Array[Dictionary] = []
-	if not DirAccess.dir_exists_absolute(root_path):
-		return result
-	for id in DirAccess.get_directories_at(root_path):
-		var snapshot := load_world(id, root_path)
-		if not snapshot.is_empty():
-			result.append({"id": id, "seed": snapshot.world.seed, "saved_at": snapshot.saved_at})
+	var found: Dictionary = {}
+	for root in read_roots(root_path):
+		if not DirAccess.dir_exists_absolute(root):
+			continue
+		for id in DirAccess.get_directories_at(root):
+			if found.has(id):
+				continue
+			var snapshot := load_world(id, root)
+			if not snapshot.is_empty():
+				found[id] = true
+				result.append({"id": id, "seed": snapshot.world.seed, "saved_at": snapshot.saved_at})
 	result.sort_custom(func(a: Dictionary, b: Dictionary) -> bool: return a.saved_at > b.saved_at)
 	return result

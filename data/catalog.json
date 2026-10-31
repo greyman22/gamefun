@@ -1,6 +1,7 @@
 {
   "version": 1,
   "blocks": {
+    "chest": {"id": 10, "name": "Kista", "color": "b77b35", "tool": "axe", "interaction": "storage"},
     "air": {"id": 0, "name": "Luft", "shape": "none", "color": "000000"},
     "stone": {"id": 1, "name": "Stenblock", "color": "88939e", "tool": "pickaxe", "requires_tool_for_drop": true},
     "dirt": {"id": 2, "name": "Jordblock", "color": "88603b", "tool": "shovel", "grass": true},
@@ -9,9 +10,19 @@
     "planks": {"id": 5, "name": "Träkloss", "color": "bf925c", "tool": "axe"},
     "workbench": {"id": 6, "name": "Arbetsbänk", "color": "906336", "tool": "axe", "interaction": "crafting"},
     "bedrock": {"id": 7, "name": "Berggrund", "color": "303940", "breakable": false, "drop": false},
+    "soul_block": {"id": 9, "name": "Själblock", "color": "7634ad", "tool": "pickaxe"},
     "torch": {"id": 8, "name": "Fackla", "shape": "torch", "color": "ffad41", "seconds": 0.3}
   },
   "items": {
+    "raw_chicken": {"name": "R\u00e5 kyckling", "stack": 64},
+    "egg": {"name": "\u00c4gg", "stack": 64},
+    "chest": {"name": "Kista", "block": "chest", "stack": 64},
+    "blueberry": {"name": "Blåbär", "stack": 64, "description": "Håll höger musknapp i två sekunder för att äta: +5 % mättnad. Högerklicka på en jordyta för att plantera en buske."},
+    "soul_block": {"name": "Själblock", "block": "soul_block", "stack": 64},
+    "soul_remnant": {"name": "Själsrest", "stack": 64, "description": "En glödande rest av magin som höll zombien vid liv. Sparas till framtida förtrollningar och utrustningsförbättringar."},
+    "stone_sword": {"name": "Stensvärd", "tool": true, "stack": 1, "max_uses": 100},
+    "foliage": {"name": "Grenverk", "block": "foliage", "stack": 64},
+    "bedrock": {"name": "Berggrund", "block": "bedrock", "stack": 64},
     "stone": {"name": "Stenblock", "block": "stone", "stack": 64},
     "dirt": {"name": "Jordblock", "block": "dirt", "stack": 64},
     "wood": {"name": "Trädstam", "block": "wood", "stack": 64},
@@ -19,9 +30,9 @@
     "workbench": {"name": "Arbetsbänk", "block": "workbench", "stack": 64},
     "torch": {"name": "Fackla", "block": "torch", "stack": 64},
     "stick": {"name": "Träpinne", "stack": 64},
-    "axe": {"name": "Yxa", "tool": true, "stack": 64},
-    "pickaxe": {"name": "Hacka", "tool": true, "stack": 64},
-    "shovel": {"name": "Spade", "tool": true, "stack": 64}
+    "axe": {"name": "Yxa", "tool": true, "stack": 1, "max_uses": 100},
+    "pickaxe": {"name": "Hacka", "tool": true, "stack": 1, "max_uses": 100},
+    "shovel": {"name": "Spade", "tool": true, "stack": 1, "max_uses": 100}
   },
   "recipes": [
     {"width": 2, "pattern": "wood", "kind": "planks", "count": 4},
@@ -30,7 +41,10 @@
     {"width": 3, "pattern": "stone,stone,stone/.,stick,./.,stick,.", "kind": "pickaxe", "count": 1},
     {"width": 3, "pattern": "stone/stick/stick", "kind": "shovel", "count": 1},
     {"width": 3, "pattern": "stone,stone/stick,stone/stick,.", "kind": "axe", "count": 1},
-    {"width": 3, "pattern": "stone,stone/stone,stick/.,stick", "kind": "axe", "count": 1}
+    {"width": 3, "pattern": "stone,stone/stone,stick/.,stick", "kind": "axe", "count": 1},
+    {"width": 3, "pattern": "stone/stone/stick", "kind": "stone_sword", "count": 1},
+    {"width": 3, "pattern": "soul_remnant,soul_remnant,soul_remnant/soul_remnant,soul_remnant,soul_remnant/soul_remnant,soul_remnant,soul_remnant", "kind": "soul_block", "count": 1},
+    {"width": 3, "pattern": "wood,wood,wood/wood,.,wood/wood,wood,wood", "kind": "chest", "count": 1}
   ],
-  "actors": {"pickup": {"active_distance": 32}, "torch": {"active_distance": 24}, "monster": {"active_distance": 48, "reserved": true}}
+  "actors": {"hen": {"active_distance": 64},"berry_bush": {"active_distance": 72},"zombie": {"active_distance": 96}, "pickup": {"active_distance": 32}, "torch": {"active_distance": 24}, "monster": {"active_distance": 48, "reserved": true}}
 }

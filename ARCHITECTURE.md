@@ -41,8 +41,106 @@ En färdig temporär fil verifieras innan den ersätter sparningen. Tidigare kom
 
 ## Utbyggnad
 
-Detta är den första fungerande skalerbara grunden, inte en färdig Minecraft-motor. Världen är nu begränsad till 512 × 512 meter och 128 höjdnivåer. Framtida större världar kan använda samma koordinater och områdesmodell.
+Detta är den första fungerande skalerbara grunden, inte en färdig Minecraft-motor. Världen är nu begränsad till 2 048 × 2 048 meter och 128 höjdnivåer. Framtida större världar kan använda samma koordinater och områdesmodell.
 
 Långdistans-LOD, avancerad grottocklusion och monster-AI/vägsökning är separata kommande funktioner. Checkpointen innehåller bara ändringar men skriver för närvarande hela ändringslagret vid sparning. Regionfiler med inkrementell skrivning och paging av gamla ändringar är nästa steg om stora redigerade världar gör sparning eller ändringsminne dyrt.
 
 Vid ändrad världsgenerator måste gamla versioner behållas eller världen uttryckligen migreras. Byt inte generatorversion i en befintlig sparfil och anta att samma seed fortfarande betyder samma terräng.
+
+
+## Spellägen och byggnader
+
+`world.gd` sparar `mode` (`play`/`debug`) i sessionsbilden. Debug ger startmaterial från föremålskatalogen; en laddad värld fylls inte på på nytt. Båda lägena använder samma spelregler och områdesströmning. Världsgränsen är nu ±1 024 meter, och strömmaren härleder gränserna från generatorn.
+
+`core/zombie_house.gd` väljer en högre plats vid 40 meters radie i debugläge och en seedstyrd radie på 200–400 meter i spelläge kring starten. Byggnaden skrivs som en samlad mängd vanliga blockändringar innan områden skapas. Den ger därför inga extra noder per byggblock. `world_data.landmarks` sparar husets grundposition och markörposition; ändrade husblock ligger i den vanliga ändringskartan och återställs inte vid laddning. Äldre sparningar utan landmärket kompletteras en gång. Debugmarkören ligger i skärmlagret och fungerar även bortom kamerans siktavstånd. Fem zombieposter skapas runt huset med stabila ID:n, även vid uppgradering av äldre sparningar. `zombie.gd` visar enkla blockavatarer och simulerar vandring, blockhinder, enblocks trappsteg och fall mot blockdata. Hembasen begränsar vandringen till 15 meters radie. Entitetssystemet aktiverar dem inom 96 meter, pausar dem när spelaren är långt bort och sparar position, mål, riktning och väntetid. Zombies gör närhetsanfall med blockkontrollerad siktlinje och separat träffpaus. Hopp mellan enblocks nivåskillnader sparas med utgångspunkt, mål och förlopp. Jakt och återgång till ursprungsplats beskrivs nedan.
+
+
+## Spelarstatus
+
+`core/vitals.gd` hanterar flyttalsvärden 0–100 för hälsa och mättnad, fallskadekurvan, träffskydd och de två återhämtningsreglerna. `player.gd` mäter fall från högsta fotposition till landning och meddelar statusmodellen. `world.gd` behandlar död synkront: återställer status, hanterar utrustning efter spelläge, laddar området runt den aktuella markytan vid återsamlingsplatsen och nollställer fallspårning. `vitals_hud.gd` visar hela och halva symboler utan att avrunda de sparade statusvärdena. Status, fallspårning och zombieanfallens återstående paus ingår i sparningen. Simulationstiden står still under paus och inventarievisning.
+
+
+## Stridsregister och tidsstyrd läkning
+
+`data/combat.json` innehåller avatarernas anfall, försvar, räckvidd och intervall, vapnens bonusar och intervall, försvarsskalan samt zombiernas återkomsttider. `core/combat.gd` validerar och läser in tabellen; F3-panelen kan ladda om den under paus. Vapnens intervall ersätter grundintervallet och deras anfallsbonus adderas. Spelarens träfftest använder en fysikstråle mot block och zombieområden, så väggar stoppar anfall. Döda zombies behåller en datapost med `dead` och en absolut `respawn_at` i modellens speltid, men deras scenobjekt tas bort. Entitetssystemet återställer dem vid tidsgränsen. Hälsa, attackintervall och återkomst väntar under paus.
+
+Spelarens läkning använder två sparade räknare: ett steg om fem hälsopoäng efter 60 sekunder och ett steg om tjugo efter fem sekunder om mättnaden räcker till en fempoängskostnad utan att passera 90. Full hälsa återställer räknarna. Fallskada är tjugo hälsopoäng per meter över två meter, utan försvarsreduktion. Debugvärldar skapar inte de tre lösa startverktygen; laddning av äldre debugvärldar tar bort dessa specifika startposter utan att röra vanliga nedfallna föremål.
+
+
+## Förföljelse, verktygsgränser och stridsåterkoppling
+
+Zombiernas sparade beteende växlar mellan `wander`, `chase` och `return`. Trösklarna i stridstabellen är tio meter för upptäckt och tjugo för avbruten jakt; start kräver fri sikt. `spawn_position` är återgångsmålet, medan `home` begränsar den vanliga vandringen till husets 15-metersradie. Under jakt/återgång används `core/zombie_navigation.gd`, en lokal A*-sökning begränsad till 256 besök och 24 meters utsträckning, med markstöd, takkontroller och enblocks steg. Rörelse och hopp kontrolleras dessutom mot blockmodellen vid varje steg. Zombiens hastighet härleds från spelarens konstant till en tredjedel.
+
+Slaget sparar separat förlopp och flagga för utförd träff. Förvarning och armsving kommer före träffen, som kontrollerar avstånd och sikt igen. `combat_feedback.gd` visar träffmarkering och skadekant, och zombiens visuella rot har armsving, kroppsrörelse, skadeblinkning och hälsotext. Blockgrafik och stridslogik förblir åtskilda.
+
+Registret begränsar alla verktyg till en per ruta, medan material använder sin vanliga stackgräns. Äldre sparningar får läsas med tidigare verktygsstackar upp till 64. Vid laddning normaliseras inventarium, arbetsyta och musens verktyg tillsammans; överflöd fyller lediga platser eller läggs som beständiga pickup-poster om inventariet är fullt. Mängden bevaras.
+
+
+## Knuff vid träff
+
+`core/knockback.gd` lagrar återstående horisontell förflyttning och tid. Stridens faktiska skada efter försvar multipliceras med `knockback.meters_per_damage` (0,045). Stegen fördelas över `duration` (0,18 s) oberoende av bildfrekvens. Zombier kontrollerar blockmodellens kroppshöjd i delsteg på högst fyra centimeter; spelaren använder sin vanliga kroppskollision med `move_and_collide`. Egen gång står tillbaka under knuffen, gravitationen fortsätter, och en vägg förbrukar den blockerade återstoden. Träff på en zombie avbryter dess pågående slag och hopp. Spelarens och zombiens knufftillstånd ingår i sparningen och rensas vid återkomst efter död.
+
+HUD-raden för hälsa och mättnad ligger nu ovanför snabbvalsraden. Spelarens intervall är 0,5 s utan vapen och 1 s med stensvärd; zombiens är oförändrat 1 s. F3-tabellen visar både frekvens och intervall.
+
+
+## Säkra landningar och återhämtning vid kanter
+
+Zombiernas markstöd söker högsta underlaget under alla fyra hörn i fotavtrycket. Vertikala fall delas i steg om högst fem centimeter, och nya hopp kräver faktiskt markstöd. Det förhindrar att centrum passerar kanten och låter kroppen falla in genom blocket som fortfarande ligger under en del av fötterna. `airborne` och `fall_peak` sparas och styr samma fallskadekurva som spelaren. Entitetssystemets gemensamma `mark_dead` hanterar både strid och fall, med rätt återkomsttid för världens spelläge.
+
+`repair_embedding` körs vid aktivering och vid ogiltig kroppsposition: den söker först ett litet sidosteg på samma höjd och därefter närliggande höjder, med både fri kroppsyta och markstöd. Detta reparerar även äldre sparade kantlåsningar. Avslutade nollhälsoposter avaktiveras vid aktivering; en modell utan aktiv scen kan inte lämna ett synligt nollhälsolik. Simulationsloopen kontrollerar också om ett dödande zombieanfall mot spelaren avlastat området innan den använder scenobjektet igen.
+
+
+Knuffarnas kollision hanteras nu per horisontell axel (X/Z). Spelaren använder kroppskollision i delsteg om högst fyra centimeter; zombien provar först det diagonala steget och sedan de separata axlarna mot blockmodellen. En blockerad axel nollställs i både aktuellt steg och kvarvarande knuff. Den fria komponenten fortsätter, vilket ger glidning längs hinder utan att gå genom ett hörn. Stensvärdets tabellvärden är +15 anfall och 0,5 s intervall, vilket ger anfall 25 för spelaren och två slag per sekund.
+
+
+## Beständigt dödsbyte
+
+Den centrala och idempotenta `entity_system.mark_dead` skapar en vanlig pickup-post av typen `soul_remnant` innan dödsmeddelandet skickas. Detta omfattar strid, fall och återhämtning av ett nollhälsotillstånd. Flaggan `state.dead` hindrar upprepade belöningar och sparas tillsammans med både zombie och dödsbyte. Själva återkomsten skapar inget byte. Föremålskatalogen anger stackgräns 64 och framtida användning. Ikonen är en transparent, kodbaserad pixelillustration; 3D-modellen använder en liten emissiv lila sfär och en kameraorienterad gloria utan dyra skuggkastande ljus. Pickupens visuella svävning påverkar inte dess sparade position eller gravitation.
+
+
+## Namnbyte och breddad strid
+
+Programnamnet är Game Fun. `save_store.read_roots` söker både den nya användarmappen och föregående namns mapp, med den nya som förstahandsval. Världar dedupliceras på ID och gamla filer ändras inte. Det behövs ingen masskopiering av användardata.
+
+Vapnens `sweep_degrees` styr urvalet av mål. Stensvärdet har 180 grader och använder aktiva varelsepositioner, horisontellt framåtriktat skalärprov, räckvidd, höjdgräns och voxelbaserad siktlinje. En sving applicerar skada på mål-ID:n från en fast lista och tar en gemensam cooldown. Yxan saknar svep och använder det enskilda strålträfftestet. Själblock har stabilt block-ID 9 och receptet nio soul_remnant i 3×3. Själresten skapas vid dödspositionen +0,95 meter och utan horisontell hastighet.
+
+Hopp använder en gemensam interpoleringsfunktion för både förhandsprov och animation. Hela banan samplas innan hoppet godkänns; höjdbyten landar mot rutcentrum. Vägpunktshöjd deltar i avslutstestet. Lokal bevakning upptäcker utebliven horisontell framdrift vid upprepade hopp, avbryter förloppet och söker närliggande fritt underlag med kontrollerad övergång. Den har ingen effekt på normala stridsstopp eller knuffar.
+
+
+## Bärväxtlighet
+
+`core/berries.gd` väljer grupper i ett 160-meters rutnät med seedstyrd variation. Centren kan variera högst tjugo meter mellan celler, vilket ger minst 136 meters avstånd mellan närmaste rutor i olika grupper. Varje grupp väljer fem till tio av tjugofem kandidatrutor på obebyggd jord; grupper med för få lediga rutor utelämnas. En grupp markeras i `landmarks.berry_groups` så att återbesök inte skapar dubbletter. Endast grupper inom åttio meter materialiseras som dataposter, och buskarnas scenobjekt aktiveras inom 72 meter.
+
+Buskar är entiteter utan fulla terrängblock, med en särskild träffyta på lager 4 och fyra kodbaserade 3D-former. `planted_at` och `ripe_at` jämförs mot modellens sparade speltid, så ingen avlägsen buske behöver en aktiv timer eller scen. Skörd tar bort buskens entitet och lämnar bär som vanliga pickup-poster. Spelarens målstråle väljer buskar före terräng; skörd har företräde framför vanliga anfall och kostar inget verktygsslitage. Ätande avbryts utan konsumtion före slutförda två sekunder. Plantering är en enda vänstertryckning mot jordens ovansida och kräver en fri ruta utanför spelarkroppen.
+
+## Individuell hållbarhet
+
+Verktygsstackar har `durability` och `max_durability`; katalogens `max_uses` bestämmer ny utrustnings livslängd. `Registry.stack`, `assign_slot` och `fill_slot` bevarar föremålets metadata. Inventariets `add_stack` och `take_stack` transporterar hela verktygsinstansen. Cursorplaner, snabbflytt, halvering, receptmallar och återföring av ingredienser bevarar nu också metadata i stället för att återskapa enbart kind/count. Avancerade tillverkningsresultat skapar nya fulla verktyg. Pickup-poster kan bära `item` för exempelvis en sliten utrustning som blivit över vid normalisering av en äldre full sparning.
+
+`wear_selected_tool` anropas en gång efter ett färdigt block eller en lyckad attack, och tar bort verktyget när räknaren når noll. Skörd av buskar går i en separat kodväg utan slitage. Indikatorn är en fem pixlar hög ProgressBar i ett överlägg ovanpå slotkontrollen; Container-layouten kan därför inte sträcka den över hela föremålsrutan. Även musens förhandsvisning visar hållbarheten.
+
+Skördade blåbär har en sparad landningsflagga och skördeposition för insamling. Insamling kräver markkontakt, en kort tid efter landningen och att spelaren närmat sig bären minst 15 cm jämfört med skördepositionen, utöver det vanliga upptagningsavståndet. Markflaggan återställs om underlaget grävs bort.
+
+Bärfördelning version 2 använder 36-metersceller med en meters seedvariation. En grupp upptar högst fem meter i sidled, vilket ger minst trettio meter mellan olika gruppers ytterkanter. Genereringsradien härleds från visningsområdet. Vid första laddning av en äldre fördelning tas bara gamla wild_berry-poster bort och återskapas tätare; planterade buskar lämnas kvar. Versionsmärkta entitets-ID:n undviker att gamla scenobjekt återanvänds på fel plats under omladdningen.
+
+Buskens träffyta följer hela den synliga kronans bredd för varje tillväxtsteg. Träff från insidan är tillåten, och en jord-ovansida med en buske ovanpå prioriteras som buskmål. En separat tredimensionell fokusram visas och terrängens ytram döljs. `harvest_press` låser interaktionen till skörd fram till vänsterknappens släpp; färdig skörd stänger dessutom `mining_held`. Detta hindrar att underlaget grävs bort och därmed tar bort busken utan bär.
+
+
+## Kistor
+Kista är block-id 10. `core/chests.gd` kopplar högst två grannar på samma höjd och håller 27 stackar per block i `WorldData.containers`, en gles tabell sparad tillsammans med världsändringarna. Inga noder behövs för avlägsna kistor. Dubbelkistan visar samma stackreferenser i stabil x/z-ordning. Vid demontering töms endast det borttagna blockets förvaring som pickup-objekt med bevarad verktygsslitning. `chest_ui.gd` återanvänder inventarierutor och `core/storage_cursor.gd` återanvänder stapelmarkörens dragning, delning och fördelning; shift-flytt är tvåvägs och fyller nedifrån. Spelarens befintliga 32 platser och åtta snabbval bevaras.
+
+Kistpar lagras som ömsesidiga cellänkar i `landmarks.chest_pairs`. Nya kistor paras bara med en ledig granne; befintliga par ändras inte när fler kistor placeras intill. Äldre sparningar migreras vid laddning. Kistgeometrin byggs direkt i chunkens mesh och kollisionsyta: enkelkistor är 0,84×0,88×0,84 meter, och parade halvor förlängs fram till den gemensamma cellkanten. UV-koordinaterna delar samma lock och lås över halvorna. Meshjobbet får endast länkar inom den egna chunken, så avlägsna kistor skapar inga extra noder eller kopieringskostnader.
+
+Inventory layout: 9 columns, 36 slots, hotbar at indices 27-35. Craft/storage cursor indices start at 36. Saves with 32 inventory slots migrate row by row from width 8 to width 9, preserving hotbar positions and metadata.
+
+
+## Hens
+`core/hens.gd` creates deterministic nearby flocks and maintains persisted adult/egg/love/partner/birth deadlines on entity records. `hen.gd` builds adult and chick voxel models and uses bounded terrain navigation. EntitySystem streams hen nodes within 64 metres. Only active hens move, pair or lay eggs; absolute game-time deadlines preserve growth and love expiry after unloading. New pickups have a saved `expires_at` deadline and are cleaned up independently of node activation. Legacy pickups without deadlines keep their prior behaviour.
+
+Terrain appearance: covered dirt uses its plain-soil atlas tile; greedy masks distinguish it from exposed dirt without new saved block IDs. Vertex blue marks dirt/stone for an antialiased, distance-faded metre grid in the atlas shader, with no overlay geometry. The geometric crosshair is drawn seven logical pixels below the camera ray.
+
+Actor spacing: `core/actor_space.gd` resolves local body overlap for active hens, chicks, zombies and the player after movement, respecting terrain and hen home bounds. Chick bodies are smaller; newborns search for free ground near their parents. Hen interpolation stays level on flat routes, with alternating leg swings; arcs are used only for changes of block height.
+
+House placement version 2 prefers lower, gently sloped sites with a flatter entrance approach. Floor height follows the median natural footprint height (minimum floor y=0) instead of the maximum/minimum-six rule. A graded dirt apron blends into surrounding ground, with level ground up to twelve metres toward +Z from the house centre. Existing saved landmarks and their edits are retained.
+
+Hen combat uses the shared damage formula, weapon cooldowns, durability and knockback. Per-hen defense is assigned on first activation and persisted on its entity record; health, growth stage and knockback persist in state. Death cancels any breeding pair, removes the hen record and drops raw_chicken only for adults. Natural group metadata prevents killed hens from regenerating on revisits.

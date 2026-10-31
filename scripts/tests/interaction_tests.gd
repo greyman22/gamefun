@@ -52,7 +52,7 @@ func check_bulk_craft(width: int) -> void:
 	table.slots[0] = {"kind": "wood", "count": 64}
 	expect(table.craft_all(bag) == 256 and bag.count_item("planks") == 256 and table.slots[0].count == 0, "Bulk craft must convert all logs in either grid")
 	bag = Inventory.new()
-	bag.add_items("dirt", 1984)
+	bag.add_items("dirt", 2240)
 	bag.add_items("planks", 58)
 	table.slots[0] = {"kind": "wood", "count": 10}
 	expect(table.craft_all(bag) == 4 and table.slots[0].count == 9, "Bulk craft must preserve unused ingredients when only one complete batch fits")
@@ -68,14 +68,14 @@ func check_bulk_craft(width: int) -> void:
 	cursor.bind(bag, table)
 	table.slots[0] = {"kind": "wood", "count": 3}
 	expect(cursor.take_result() == 4 and cursor.held.kind == "planks" and cursor.held.count == 4 and bag.count_item("planks") == 0, "Crafting must create a cursor stack rather than automatically deposit")
-	cursor.touch(27)
+	cursor.touch(30)
 	cursor.finish()
-	expect(bag.slots[27].count == 4 and cursor.held.count == 0 and table.slots[0].count == 2, "Dragging result must place it in selected inventory cell")
+	expect(bag.slots[30].count == 4 and cursor.held.count == 0 and table.slots[0].count == 2, "Dragging result must place it in selected inventory cell")
 	expect(cursor.take_result(true) == 8 and table.slots[0].count == 0, "Shift result must create all remaining batches on cursor")
 	cursor.finish()
 	expect(cursor.store_held() and bag.count_item("planks") == 12, "Cancelling result drag must keep crafted output and automatically store it")
 	bag = Inventory.new()
-	bag.add_items("dirt", 2048)
+	bag.add_items("dirt", 2304)
 	cursor.bind(bag, table)
 	table.slots[0] = {"kind": "wood", "count": 1}
 	cursor.take_result()
@@ -87,15 +87,15 @@ func check_cursor(width: int) -> void:
 	var table := Crafting.new(width)
 	var cursor := Cursor.new()
 	cursor.bind(bag, table)
-	cursor.press(24, MOUSE_BUTTON_LEFT)
+	cursor.press(27, MOUSE_BUTTON_LEFT)
 	cursor.finish()
-	expect(bag.slots[24].count == 0 and cursor.held.count == 10, "Click must lift entire stack from its source")
-	cursor.press(32, MOUSE_BUTTON_LEFT)
-	for index in [33, 34, 35]:
+	expect(bag.slots[27].count == 0 and cursor.held.count == 10, "Click must lift entire stack from its source")
+	cursor.press(36, MOUSE_BUTTON_LEFT)
+	for index in [37, 38, 39]:
 		cursor.touch(index)
 	var preview: Dictionary = cursor.preview()
 	for index in range(4):
-		expect(preview.slots[32 + index].count == (3 if index < 2 else 2), "Live preview must show fair counts before mouse release")
+		expect(preview.slots[36 + index].count == (3 if index < 2 else 2), "Live preview must show fair counts before mouse release")
 		expect(table.slots[index].count == 0, "Preview must not mutate committed crafting data")
 	expect(cursor.held.count == 10 and preview.held.count == 0, "Preview must reserve items visually without duplicating ownership")
 	cursor.finish()
@@ -103,7 +103,7 @@ func check_cursor(width: int) -> void:
 		expect(table.slots[index].count == (3 if index < 2 else 2), "Ten logs over four cells must distribute as 3+3+2+2")
 	expect(cursor.held.count == 0, "Successful spread must empty cursor")
 	expect(cursor.return_all() and bag.count_item("wood") == 10, "Closing must return every distributed item")
-	cursor.press(24, MOUSE_BUTTON_LEFT, true)
+	cursor.press(27, MOUSE_BUTTON_LEFT, true)
 	expect(bag.count_item("wood") == 0 and cursor.held.count == 0, "Shift-click must move whole stack to crafting")
 	var total: int = 0
 	var low: int = 100
@@ -114,27 +114,27 @@ func check_cursor(width: int) -> void:
 		high = maxi(high, entry.count)
 	expect(total == 10 and high - low <= 1, "Shift-move must distribute evenly in either grid size")
 	cursor.return_all()
-	cursor.press(24, MOUSE_BUTTON_RIGHT)
-	expect(cursor.held.count == 5 and bag.slots[24].count == 5, "Right-click must lift half from inventory")
-	cursor.press(32, MOUSE_BUTTON_LEFT)
+	cursor.press(27, MOUSE_BUTTON_RIGHT)
+	expect(cursor.held.count == 5 and bag.slots[27].count == 5, "Right-click must lift half from inventory")
+	cursor.press(36, MOUSE_BUTTON_LEFT)
 	cursor.finish()
 	expect(table.slots[0].count == 5 and cursor.held.count == 0, "Clicking another cell must deposit held half")
-	cursor.press(32, MOUSE_BUTTON_RIGHT)
+	cursor.press(36, MOUSE_BUTTON_RIGHT)
 	expect(cursor.held.count == 3 and table.slots[0].count == 2, "Odd stack split must lift ceiling half without losing items")
-	cursor.press(24, MOUSE_BUTTON_LEFT)
+	cursor.press(27, MOUSE_BUTTON_LEFT)
 	cursor.finish()
-	expect(bag.slots[24].count == 8 and cursor.held.count == 0, "Crafting half must merge back into inventory stack")
+	expect(bag.slots[27].count == 8 and cursor.held.count == 0, "Crafting half must merge back into inventory stack")
 	cursor.return_all()
-	cursor.press(24, MOUSE_BUTTON_LEFT)
+	cursor.press(27, MOUSE_BUTTON_LEFT)
 	cursor.finish()
-	bag.slots[25] = {"kind": "stone", "count": 2}
-	cursor.press(25, MOUSE_BUTTON_LEFT)
+	bag.slots[28] = {"kind": "stone", "count": 2}
+	cursor.press(28, MOUSE_BUTTON_LEFT)
 	cursor.finish()
-	expect(bag.slots[25].kind == "wood" and cursor.held.kind == "stone" and cursor.held.count == 2, "Click on different stack must swap instead of delete")
+	expect(bag.slots[28].kind == "wood" and cursor.held.kind == "stone" and cursor.held.count == 2, "Click on different stack must swap instead of delete")
 	cursor.return_all()
 	expect(bag.count_item("wood") == 10 and bag.count_item("stone") == 2, "Swap and close must conserve both kinds")
 	var full := Inventory.new()
-	full.add_items("dirt", 2048)
+	full.add_items("dirt", 2304)
 	cursor.bind(full, Crafting.new(width))
 	cursor.held = {"kind": "wood", "count": 1}
 	expect(not cursor.return_all() and cursor.held.count == 1, "Full inventory must preserve held stack when close cannot complete")
@@ -145,8 +145,8 @@ func check_cursor(width: int) -> void:
 	cursor.reset()
 	cursor.held = {"kind": "wood", "count": 10}
 	table.slots[0] = {"kind": "wood", "count": 63}
-	cursor.press(32, MOUSE_BUTTON_LEFT)
-	cursor.touch(33)
+	cursor.press(36, MOUSE_BUTTON_LEFT)
+	cursor.touch(37)
 	cursor.finish()
 	expect(table.slots[0].count == 64 and table.slots[1].count == 9 and cursor.held.count == 0, "Distribution must respect stack capacity")
 
@@ -172,7 +172,7 @@ func check_templates(width: int) -> void:
 	var log_recipe: Dictionary = Registry.catalog.recipes[0]
 	expect(not cursor.can_fill(log_recipe) and not cursor.fill_template(log_recipe), "Missing materials must leave grid unchanged")
 	bag.add_items("wood", 10)
-	cursor.press(24, MOUSE_BUTTON_LEFT)
+	cursor.press(27, MOUSE_BUTTON_LEFT)
 	cursor.finish()
 	expect(cursor.fill_template(log_recipe) and cursor.held.count == 0 and bag.count_item("wood") == 9, "Templates must reuse a held stack and return surplus safely")
 
@@ -254,13 +254,13 @@ func check_world_and_ui() -> void:
 		world.model.entities.erase(drop_id)
 		world.entity_system.deactivate(drop_id)
 	var full := Inventory.new()
-	full.add_items("dirt", 2048)
+	full.add_items("dirt", 2304)
 	world.model.advance(1)
 	world.entity_system.collect(world.model.entities[id].position, full)
 	expect(world.model.entities.has(id), "Full inventory must leave world item in place")
-	full.slots[24].count = 63
+	full.slots[27].count = 63
 	world.entity_system.collect(world.model.entities[id].position, full)
-	expect(not world.model.entities.has(id) and full.count_item("dirt") == 2048, "Nearby pickup must fill available capacity exactly once")
+	expect(not world.model.entities.has(id) and full.count_item("dirt") == 2304, "Nearby pickup must fill available capacity exactly once")
 	# Both dialogs share real pointer and template controls.
 	for width in [2, 3]:
 		world.inventory = Inventory.new()
@@ -273,7 +273,7 @@ func check_world_and_ui() -> void:
 		await process_frame
 		await process_frame
 		if DisplayServer.get_name() != "headless":
-			var from: Vector2 = world.inventory_slots[24].get_global_rect().get_center()
+			var from: Vector2 = world.inventory_slots[27].get_global_rect().get_center()
 			await move_mouse(from, false)
 			await send_mouse(from, MOUSE_BUTTON_LEFT, true)
 			await send_mouse(from, MOUSE_BUTTON_LEFT, false)
@@ -295,14 +295,14 @@ func check_world_and_ui() -> void:
 			for index in range(4):
 				expect(world.crafting.slots[index].count == (3 if index < 2 else 2), "Native mouse painting must distribute evenly")
 		else:
-			world.inventory_pointer_press(24, MOUSE_BUTTON_LEFT, false)
+			world.inventory_pointer_press(27, MOUSE_BUTTON_LEFT, false)
 			world.stack_cursor.finish()
-			world.inventory_pointer_press(32, MOUSE_BUTTON_LEFT, false)
-			for index in [33, 34, 35]:
+			world.inventory_pointer_press(36, MOUSE_BUTTON_LEFT, false)
+			for index in [37, 38, 39]:
 				world.stack_cursor.touch(index)
 			world.stack_cursor.finish()
 			world.refresh_slots()
-		expect(world.template_buttons.size() == 6, "Recipe strip must show six unique products")
+		expect(world.template_buttons.size() == 9, "Recipe strip must show nine unique products")
 		for entry: Dictionary in world.template_buttons:
 			expect(entry.button.disabled == not world.stack_cursor.can_fill(entry.recipe), "Missing materials or insufficient grid must dim recipe")
 		if "--capture-ui" in OS.get_cmdline_user_args():
@@ -314,10 +314,10 @@ func check_world_and_ui() -> void:
 			await send_mouse(half_at, MOUSE_BUTTON_RIGHT, true)
 			await send_mouse(half_at, MOUSE_BUTTON_RIGHT, false)
 			expect(world.stack_cursor.held.count == 2 and world.crafting.slots[0].count == 1, "Native right click must lift half from craft")
-			var deposit_at: Vector2 = world.inventory_slots[24].get_global_rect().get_center()
+			var deposit_at: Vector2 = world.inventory_slots[27].get_global_rect().get_center()
 			await send_mouse(deposit_at, MOUSE_BUTTON_LEFT, true)
 			await send_mouse(deposit_at, MOUSE_BUTTON_LEFT, false)
-			expect(world.inventory.slots[24].count == 2 and world.stack_cursor.held.count == 0, "Native left click must return split stack")
+			expect(world.inventory.slots[27].count == 2 and world.stack_cursor.held.count == 0, "Native left click must return split stack")
 			var template_at: Vector2 = world.template_buttons[0].button.get_global_rect().get_center()
 			await send_mouse(template_at, MOUSE_BUTTON_LEFT, true)
 			await send_mouse(template_at, MOUSE_BUTTON_LEFT, false)
@@ -329,14 +329,14 @@ func check_world_and_ui() -> void:
 		world.stack_cursor.finish()
 		world.stack_cursor.store_held()
 		if DisplayServer.get_name() != "headless":
-			var shift_at: Vector2 = world.inventory_slots[24].get_global_rect().get_center()
+			var shift_at: Vector2 = world.inventory_slots[27].get_global_rect().get_center()
 			await send_mouse(shift_at, MOUSE_BUTTON_LEFT, true, true)
 			await send_mouse(shift_at, MOUSE_BUTTON_LEFT, false, true)
 			expect(world.inventory.count_item("wood") == 0 and world.stack_cursor.held.count == 0, "Native shift click must transfer inventory group")
 			world.toggle_inventory()
 			world.toggle_inventory(width == 3)
 		# A held stack is part of a complete save snapshot and must return on close.
-		world.inventory_pointer_press(24, MOUSE_BUTTON_RIGHT, false)
+		world.inventory_pointer_press(27, MOUSE_BUTTON_RIGHT, false)
 		var saved: Dictionary = world.snapshot()
 		expect(saved.cursor.count > 0, "Session snapshot must include cursor-held materials")
 		world.toggle_inventory()
@@ -380,7 +380,7 @@ func check_world_and_ui() -> void:
 			expect(world.stack_cursor.held.count == 0 and world.inventory.count_item("planks") == before_cancel + 4 and world.crafting.slots[0].count == 0, "Aborted native drag must store created output without refunding ingredients")
 			world.toggle_inventory()
 	# Hand and equipped tool share the same reversible mining stroke.
-	world.inventory.slots[31] = {"kind": "axe", "count": 1}
+	world.inventory.slots[34] = {"kind": "axe", "count": 1}
 	for selected in [7, 6]:
 		world.select_hotbar(selected)
 		var low: float = 100

@@ -1,9 +1,22 @@
 extends Node3D
 
+signal zombie_died(position: Vector3)
+
+const ActorSpace = preload("res://scripts/core/actor_space.gd")
+const Hens = preload("res://scripts/core/hens.gd")
+const Hen = preload("res://scripts/hen.gd")
+const DROP_LIFETIME: float = 300
+var game_mode: String = "play"
+const Berries = preload("res://scripts/core/berries.gd")
+const BerryBush = preload("res://scripts/berry_bush.gd")
+const Combat = preload("res://scripts/core/combat.gd")
 const Registry = preload("res://scripts/core/registry.gd")
 const Visuals = preload("res://scripts/item_visuals.gd")
+const Zombie = preload("res://scripts/zombie.gd")
 const Pickup = preload("res://scripts/pickup.gd")
+var soul_lure: Variant = null
 var model: RefCounted
+var death_respawn_delay: float = 180
 var active: Dictionary = {}
 var factories: Dictionary = {}
 var elapsed: float = 1
@@ -13,17 +26,24 @@ var torch_light_limit: int = 12
 func register_actor(kind: String, scene: PackedScene) -> void:
 	factories[kind] = scene
 
-func configure(data: RefCounted) -> void:
+func configure(data: RefCounted, mode: String = "play") -> void:
 	model = data
+	game_mode = mode
+	death_respawn_delay = Combat.respawn_seconds(mode)
 
 func tick(position: Vector3, delta: float) -> void:
 	elapsed += delta
 	if elapsed < 0.3:
 		return
 	elapsed = 0
+	expire_drops()
+	Berries.ensure_nearby(model, position)
+	Hens.ensure_nearby(model, position, game_mode)
 	var nearby: Array = []
 	for id: String in model.entities:
 		var record: Dictionary = model.entities[id]
+		if record.get("state", {}).get("dead", false):
+			continue
 		var distance: float = position.distance_to(record.position)
 		var radius: float = float(Registry.catalog.actors.get(record.type, {}).get("active_distance", 32))
 		if distance <= radius:
@@ -38,6 +58,8 @@ func tick(position: Vector3, delta: float) -> void:
 		wanted[entry.id] = true
 		if not active.has(entry.id):
 			activate(entry.id, record)
+		if record.type == "berry_bush" and active.has(entry.id):
+			active[entry.id].refresh()
 		if record.type == "torch" and active.has(entry.id):
 			var sources: Array[Node] = active[entry.id].find_children("*", "OmniLight3D", true, false)
 			for source in sources:
@@ -50,6 +72,15 @@ func tick(position: Vector3, delta: float) -> void:
 func activate(id: String, record: Dictionary) -> void:
 	var node: Node3D
 	match record.type:
+		"hen":
+			node = Hen.new()
+			node.configure(model, record)
+		"berry_bush":
+			node = BerryBush.new()
+			node.configure(model, record)
+		"zombie":
+			node = Zombie.new()
+			node.configure(model, record)
 		"pickup":
 			node = Pickup.new()
 			node.configure(record.kind)
@@ -80,7 +111,10 @@ func activate(id: String, record: Dictionary) -> void:
 	node.position = record.position
 	node.set_meta("entity_id", id)
 	add_child(node)
+	record.position = node.position
 	active[id] = node
+	if record.type == "zombie" and node.health <= 0:
+		mark_dead(id, death_respawn_delay)
 
 func deactivate(id: String) -> void:
 	if not active.has(id):
@@ -94,15 +128,108 @@ func deactivate(id: String) -> void:
 	node.queue_free()
 	active.erase(id)
 
+func damage_actor(id: String, amount: float, respawn_delay: float, attacker: Variant = null) -> float:
+	if not active.has(id) or not model.entities.has(id) or model.entities[id].type not in ["zombie", "hen"]:
+		return 0
+	var actor: Node3D = active[id]
+	var taken: float = minf(actor.health, maxf(0, amount))
+	actor.receive_hit(taken)
+	if attacker is Vector3 and actor.health > 0:
+		actor.apply_knockback(attacker, taken)
+	model.entities[id].state = actor.serialize_state()
+	if actor.health <= 0:
+		if model.entities[id].type == "hen":
+			var record: Dictionary = model.entities[id]
+			var adult: bool = Hens.adult(record, model.game_time)
+			var point: Vector3 = actor.position + Vector3(0, 0.4, 0)
+			Hens.cancel_pair(model, record)
+			deactivate(id)
+			model.entities.erase(id)
+			if adult:
+				spawn_drop("raw_chicken", point)
+		else:
+			mark_dead(id, respawn_delay)
+	return taken
+
+func mark_dead(id: String, delay: float) -> void:
+	if not model.entities.has(id) or model.entities[id].get("state", {}).get("dead", false):
+		return
+	deactivate(id)
+	var position: Vector3 = model.entities[id].position
+	model.entities[id].state.dead = true
+	model.entities[id].state.respawn_at = model.game_time + delay
+	var drop: String = spawn_drop("soul_remnant", position + Vector3(0, 0.95, 0))
+	model.entities[drop].state.velocity_x = 0.0
+	model.entities[drop].state.velocity_z = 0.0
+	model.entities[drop].ready_at = model.game_time + 1.0
+	zombie_died.emit(position)
+
+func respawn_zombies() -> void:
+	for record: Dictionary in model.entities.values():
+		if record.type != "zombie" or not record.get("state", {}).get("dead", false) or model.game_time < float(record.state.respawn_at):
+			continue
+		var spawn: Vector3 = record.get("spawn_position", record.position)
+		for y in range(63, -65, -1):
+			if Registry.cube(model.block(Vector3i(floori(spawn.x), y, floori(spawn.z)))):
+				spawn.y = y + 1.0
+				break
+		record.position = spawn
+		record.state = {"health": 100, "wait": 0.5}
+		elapsed = 1
+
+func simulate_actors(delta: float, player: CharacterBody3D = null) -> void:
+	Hens.tick(self, delta)
+	respawn_zombies()
+	for id: String in active.keys():
+		if not active.has(id) or not model.entities.has(id) or model.entities[id].type != "zombie":
+			continue
+		active[id].simulate(delta, player)
+		if not active.has(id):
+			continue
+		if active[id].health <= 0:
+			mark_dead(id, death_respawn_delay)
+			continue
+		if player != null:
+			active[id].attack(player)
+		if not active.has(id):
+			continue
+		model.entities[id].position = active[id].position
+		model.entities[id].state = active[id].serialize_state()
+	ActorSpace.separate(self, player)
+
+func within_pickup_reach(position: Vector3, record: Dictionary) -> bool:
+	if position.distance_to(record.position) <= 1.5:
+		return true
+	if not record.get("state", {}).get("grounded", false):
+		return false
+	# Reach the entire top of a neighbouring one-metre block, including its far corners.
+	var support := Vector3i((record.position - Vector3(0, 0.126, 0)).floor())
+	if not Registry.cube(model.block(support)):
+		return false
+	var height_above_feet: float = support.y + 1.0 - position.y
+	if height_above_feet < -0.15 or height_above_feet > 1.15:
+		return false
+	var nearest := Vector2(clampf(position.x, support.x, support.x + 1), clampf(position.z, support.z, support.z + 1))
+	return Vector2(position.x, position.z).distance_to(nearest) <= 0.42
+
 func collect(position: Vector3, inventory: RefCounted) -> bool:
 	var changed: bool = false
 	for id: String in active.keys():
 		if not model.entities.has(id):
 			continue
 		var record: Dictionary = model.entities[id]
-		if record.type == "pickup" and model.game_time >= float(record.get("ready_at", 0)) and position.distance_to(record.position) <= 1.5:
+		if record.type == "pickup" and record.kind == "blueberry":
+			if not record.get("state", {}).get("grounded", false):
+				continue
+			if record.get("needs_approach", false):
+				var origin: Vector3 = record.collection_origin
+				var moved: float = Vector2(position.x - origin.x, position.z - origin.z).length()
+				if moved < 0.15 or position.distance_to(record.position) > maxf(0.2, origin.distance_to(record.position) - 0.15):
+					continue
+				record.needs_approach = false
+		if record.type == "pickup" and model.game_time >= float(record.get("ready_at", 0)) and within_pickup_reach(position, record):
 			var remaining: int = int(record.get("count", 1))
-			while remaining > 0 and inventory.add_item(record.kind):
+			while remaining > 0 and inventory.add_stack(Registry.stack(record.kind, 1, record.get("item", {}))):
 				remaining -= 1
 				changed = true
 			record.count = remaining
@@ -116,7 +243,7 @@ func spawn_drop(kind: String, position: Vector3, count: int = 1) -> String:
 	# A small sideways impulse carries high drops farther during their longer flight.
 	var angle: float = randf() * TAU
 	var speed: float = randf_range(1.0, 1.8)
-	model.entities[id] = {"type": "pickup", "kind": kind, "position": position, "count": count, "ready_at": model.game_time + 0.5, "state": {"falling": true, "velocity_y": 0.0, "velocity_x": cos(angle) * speed, "velocity_z": sin(angle) * speed}}
+	model.entities[id] = {"type": "pickup", "kind": kind, "position": position, "count": count, "expires_at": model.game_time + DROP_LIFETIME, "ready_at": model.game_time + 0.5, "state": {"falling": true, "grounded": false, "velocity_y": 0.0, "velocity_x": cos(angle) * speed, "velocity_z": sin(angle) * speed}}
 	elapsed = 1
 	return id
 
@@ -127,6 +254,8 @@ func simulate_drops(delta: float) -> void:
 		var record: Dictionary = model.entities[id]
 		if record.type != "pickup" or not record.get("state", {}).get("falling", false):
 			continue
+		var was_grounded: bool = record.state.get("grounded", false)
+		record.state.grounded = false
 		var position: Vector3 = record.position
 		var velocity: float = maxf(-30, float(record.state.get("velocity_y", 0)) - 18 * delta)
 		var sideways := Vector3(float(record.state.get("velocity_x", 0)), 0, float(record.state.get("velocity_z", 0)))
@@ -148,6 +277,9 @@ func simulate_drops(delta: float) -> void:
 					if Registry.cube(model.block(cell)):
 						floor_top = maxf(floor_top, cell.y + 1.125)
 			if floor_top > -INF:
+				record.state.grounded = true
+				if not was_grounded and record.kind == "blueberry":
+					record.ready_at = maxf(float(record.get("ready_at", 0)), model.game_time + 0.2)
 				position.y = floor_top
 				velocity = 0
 				sideways = Vector3.ZERO
@@ -173,3 +305,10 @@ func snapshot_active() -> void:
 			model.entities[id].position = active[id].position
 			if active[id].has_method("serialize_state"):
 				model.entities[id].state = active[id].serialize_state()
+
+func expire_drops() -> void:
+	for id: String in model.entities.keys():
+		var record: Dictionary = model.entities[id]
+		if record.type == "pickup" and model.game_time >= float(record.get("expires_at", INF)):
+			model.entities.erase(id)
+			deactivate(id)

@@ -15,7 +15,7 @@ func bind(bag: RefCounted, table: RefCounted) -> void:
 	crafting = table
 
 func slot(index: int) -> Dictionary:
-	return inventory.slots[index] if index < 32 else crafting.slots[index - 32]
+	return inventory.slots[index] if index < 36 else crafting.slots[index - 36]
 
 func reset() -> void:
 	held = {"kind": "", "count": 0}
@@ -37,7 +37,7 @@ func take_result(all_batches: bool = false) -> int:
 	var amount: int = crafting.craft_all(output) if all_batches else (int(result.count) if crafting.craft(output) else 0)
 	if amount > 0:
 		cancel_paint()
-		held = {"kind": result.kind, "count": amount}
+		held = Registry.stack(result.kind, amount)
 		left_down = true
 		result_drag = true
 	return amount
@@ -45,26 +45,25 @@ func take_result(all_batches: bool = false) -> int:
 func store_held() -> bool:
 	if held.count == 0:
 		return true
-	if not inventory.add_items(held.kind, held.count):
+	if not inventory.add_stack(held):
 		return false
 	held = {"kind": "", "count": 0}
 	return true
 
 func press(index: int, button: int, shift: bool = false) -> void:
-	if index < 0 or index >= 32 + crafting.slots.size():
+	if index < 0 or index >= 36 + crafting.slots.size():
 		return
 	var target := slot(index)
 	if button == MOUSE_BUTTON_RIGHT:
 		cancel_paint()
 		if held.count == 0 and target.count > 0:
 			var amount: int = ceili(float(target.count) / 2.0)
-			held = {"kind": target.kind, "count": amount}
+			held = Registry.stack(target.kind, amount, target)
 			target.count -= amount
 			if target.count == 0:
-				target.kind = ""
+				Registry.clear_slot(target)
 		elif held.count > 0 and (target.count == 0 or target.kind == held.kind) and target.count < Registry.stack_limit(held.kind):
-			target.kind = held.kind
-			target.count += 1
+			Registry.fill_slot(target, held, 1)
 			held.count -= 1
 			clear_empty_hand()
 		return
@@ -78,14 +77,13 @@ func press(index: int, button: int, shift: bool = false) -> void:
 	if held.count == 0:
 		if target.count > 0:
 			held = target.duplicate()
-			target.count = 0
-			target.kind = ""
+			Registry.clear_slot(target)
 			source = index
 	else:
 		painted.append(index)
 
 func touch(index: int) -> void:
-	if not left_down or held.count == 0 or index == source or index < 0 or index >= 32 + crafting.slots.size():
+	if not left_down or held.count == 0 or index == source or index < 0 or index >= 36 + crafting.slots.size():
 		return
 	var target := slot(index)
 	if target.count == 0 or (target.kind == held.kind and target.count < Registry.stack_limit(held.kind)):
@@ -109,7 +107,7 @@ func distribution_plan(indices: Array[int], allow_swap: bool) -> Dictionary:
 	var hand := held.duplicate()
 	if allow_swap and hand.count > 0 and indices.size() == 1:
 		var target: Dictionary = targets[indices[0]]
-		if target.count > 0 and target.kind != hand.kind:
+		if target.count > 0 and (target.kind != hand.kind or (Registry.tool(hand.kind) and target != hand)):
 			targets[indices[0]] = hand
 			return {"slots": targets, "held": target}
 	# Round robin gives 10 -> 3,3,2,2 in visit order, respecting stack caps.
@@ -118,8 +116,7 @@ func distribution_plan(indices: Array[int], allow_swap: bool) -> Dictionary:
 		for index in indices:
 			var target: Dictionary = targets[index]
 			if (target.count == 0 or target.kind == hand.kind) and target.count < Registry.stack_limit(hand.kind):
-				target.kind = hand.kind
-				target.count += 1
+				Registry.fill_slot(target, hand, 1)
 				hand.count -= 1
 				placed = true
 				if hand.count == 0:
@@ -133,35 +130,32 @@ func distribution_plan(indices: Array[int], allow_swap: bool) -> Dictionary:
 func apply_distribution(plan: Dictionary) -> void:
 	for index: int in plan.slots:
 		var target := slot(index)
-		target.kind = plan.slots[index].kind
-		target.count = plan.slots[index].count
+		Registry.assign_slot(target, plan.slots[index])
 	held = plan.held
 	clear_empty_hand()
 
 func clear_empty_hand() -> void:
 	if held.count == 0:
-		held.kind = ""
+		Registry.clear_slot(held)
 
 func quick_move(index: int) -> void:
 	var origin := slot(index)
 	if origin.count == 0:
 		return
-	if index < 32:
+	if index < 36:
 		held = origin.duplicate()
-		origin.count = 0
-		origin.kind = ""
+		Registry.clear_slot(origin)
 		var targets: Array[int] = []
 		for cell in range(crafting.slots.size()):
-			targets.append(32 + cell)
+			targets.append(36 + cell)
 		distribute(targets)
-		origin.kind = held.kind
-		origin.count = held.count
+		Registry.assign_slot(origin, held)
 		held = {"kind": "", "count": 0}
 	else:
-		while origin.count > 0 and inventory.add_item(origin.kind):
+		while origin.count > 0 and inventory.add_stack(Registry.stack(origin.kind, 1, origin)):
 			origin.count -= 1
 		if origin.count == 0:
-			origin.kind = ""
+			Registry.clear_slot(origin)
 
 func available() -> Dictionary:
 	var counts: Dictionary = {}
@@ -193,10 +187,10 @@ func fill_template(recipe: Dictionary) -> bool:
 		return false
 	var bag := Inventory.new()
 	bag.slots.assign(inventory.slots.duplicate(true))
-	var pool: Dictionary = {}
+	var pool: Array[Dictionary] = []
 	for entry: Dictionary in crafting.slots + [held]:
 		if entry.count > 0:
-			pool[entry.kind] = int(pool.get(entry.kind, 0)) + entry.count
+			pool.append(entry.duplicate(true))
 	var output: Array[Dictionary] = []
 	for index in range(crafting.slots.size()):
 		output.append({"kind": "", "count": 0})
@@ -207,13 +201,19 @@ func fill_template(recipe: Dictionary) -> bool:
 			var kind: String = kinds[x]
 			if kind == ".":
 				continue
-			if int(pool.get(kind, 0)) > 0:
-				pool[kind] -= 1
-			elif not bag.take_item(kind):
+			var ingredient: Dictionary = {}
+			for entry in pool:
+				if entry.kind == kind and entry.count > 0:
+					ingredient = Registry.stack(kind, 1, entry)
+					entry.count -= 1
+					break
+			if ingredient.is_empty():
+				ingredient = bag.take_stack(kind)
+			if ingredient.is_empty():
 				return false
-			output[y * crafting.width + x] = {"kind": kind, "count": 1}
-	for kind: String in pool:
-		if pool[kind] > 0 and not bag.add_items(kind, pool[kind]):
+			output[y * crafting.width + x] = ingredient
+	for entry in pool:
+		if entry.count > 0 and not bag.add_stack(entry):
 			return false
 	inventory.slots.assign(bag.slots)
 	crafting.slots.assign(output)
@@ -224,11 +224,10 @@ func return_all() -> bool:
 	var bag := Inventory.new()
 	bag.slots.assign(inventory.slots.duplicate(true))
 	for entry: Dictionary in crafting.slots + [held]:
-		if entry.count > 0 and not bag.add_items(entry.kind, entry.count):
+		if entry.count > 0 and not bag.add_stack(entry):
 			return false
 	inventory.slots.assign(bag.slots)
 	for entry in crafting.slots:
-		entry.kind = ""
-		entry.count = 0
+		Registry.clear_slot(entry)
 	reset()
 	return true

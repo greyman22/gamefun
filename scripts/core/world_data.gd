@@ -1,6 +1,7 @@
 extends RefCounted
 
 signal block_changed(cell: Vector3i)
+const Chests = preload("res://scripts/core/chests.gd")
 const Registry = preload("res://scripts/core/registry.gd")
 const Generator = preload("res://scripts/core/generator.gd")
 const SIZE: int = 16
@@ -12,6 +13,8 @@ var edits: Dictionary = {}
 var revisions: Dictionary = {}
 var cache: Dictionary = {}
 var entities: Dictionary = {}
+var containers: Dictionary = {}
+var landmarks: Dictionary = {}
 var decay: Dictionary = {}
 var game_time: float = 0
 var decay_tick: float = 0
@@ -55,12 +58,16 @@ func kind_at(cell: Vector3i) -> String:
 func set_block(cell: Vector3i, kind_name: String) -> bool:
 	if not Registry.catalog.blocks.has(kind_name) or kind_at(cell) == "bedrock":
 		return false
+	if kind_at(cell) == "chest":
+		Chests.unpair(self, cell)
 	var chunk_key := key(cell)
 	var value: int = Registry.id(kind_name)
 	if not edits.has(chunk_key):
 		edits[chunk_key] = {}
 	edits[chunk_key][index(cell)] = value
 	cache.erase(chunk_key)
+	if kind_name == "chest":
+		Chests.pair(self, cell)
 	for offset in [Vector3i.ZERO, Vector3i.LEFT, Vector3i.RIGHT, Vector3i.UP, Vector3i.DOWN, Vector3i.FORWARD, Vector3i.BACK]:
 		var adjacent := key(cell + offset)
 		revisions[adjacent] = int(revisions.get(adjacent, 0)) + 1
@@ -68,6 +75,18 @@ func set_block(cell: Vector3i, kind_name: String) -> bool:
 	if kind_name == "air":
 		schedule_decay(cell)
 	return true
+
+func worker_chest_pairs(chunk_key: Vector3i) -> Dictionary:
+	# Only send links for this chunk; distant storage does not burden mesh jobs.
+	var result: Dictionary = {}
+	var links: Dictionary = landmarks.get("chest_pairs", {})
+	for offset: int in edits.get(chunk_key, {}):
+		if edits[chunk_key][offset] != Registry.id("chest"):
+			continue
+		var cell := chunk_key * SIZE + Vector3i(offset % SIZE, (offset / SIZE) % SIZE, offset / (SIZE * SIZE))
+		if links.has(cell):
+			result[cell] = links[cell]
+	return result
 
 func worker_edits(chunk_key: Vector3i) -> Dictionary:
 	var result: Dictionary = {}
@@ -121,7 +140,7 @@ func export_state() -> Dictionary:
 			pairs.append(offset)
 			pairs.append(edits[chunk_key][offset])
 		saved_edits[text_key(chunk_key)] = pairs
-	return {"seed": seed_value, "generator_version": Generator.VERSION, "world_id": world_id, "time": game_time, "ids": Registry.saved_ids(), "edits": saved_edits, "entities": entities.duplicate(true), "decay": decay.duplicate(true)}
+	return {"seed": seed_value, "generator_version": Generator.VERSION, "world_id": world_id, "time": game_time, "ids": Registry.saved_ids(), "edits": saved_edits, "entities": entities.duplicate(true), "landmarks": landmarks.duplicate(true), "containers": containers.duplicate(true), "decay": decay.duplicate(true)}
 
 func import_state(state: Dictionary) -> bool:
 	if not state.has_all(["seed", "generator_version", "world_id", "time", "ids", "edits", "entities", "decay"]):
@@ -135,6 +154,17 @@ func import_state(state: Dictionary) -> bool:
 			return false
 		if record.type in ["pickup", "torch"] and not Registry.catalog.items.has(record.get("kind", "")):
 			return false
+	var saved_containers: Variant = state.get("containers", {})
+	if not saved_containers is Dictionary:
+		return false
+	for cell: Variant in saved_containers:
+		if not cell is Vector3i or not saved_containers[cell] is Array or saved_containers[cell].size() != 27:
+			return false
+		for item: Variant in saved_containers[cell]:
+			if not item is Dictionary or not item.has_all(["kind", "count"]) or not item.count is int or item.count < 0:
+				return false
+			if item.count > 0 and (not Registry.catalog.items.has(item.kind) or item.count > Registry.stack_limit(item.kind)):
+				return false
 	var mapping: Dictionary = {}
 	for value: int in state.ids:
 		var name: String = state.ids[value]
@@ -157,8 +187,13 @@ func import_state(state: Dictionary) -> bool:
 	world_id = state.world_id
 	game_time = state.time
 	edits = imported
+	containers = state.get("containers", {}).duplicate(true)
+	landmarks = state.get("landmarks", {}).duplicate(true)
 	entities = state.entities.duplicate(true)
 	decay = state.decay.duplicate(true)
 	cache.clear()
+	if not landmarks.has("chest_pairs"):
+		for cell: Vector3i in containers:
+			Chests.pair(self, cell)
 	revisions.clear()
 	return true

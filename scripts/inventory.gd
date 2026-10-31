@@ -2,8 +2,9 @@ extends RefCounted
 
 const Registry = preload("res://scripts/core/registry.gd")
 
-const SLOT_COUNT: int = 32
-const HOTBAR_START: int = 24
+const COLUMNS: int = 9
+const SLOT_COUNT: int = 36
+const HOTBAR_START: int = 27
 const STACK_LIMIT: int = 64
 var slots: Array[Dictionary] = []
 
@@ -20,20 +21,47 @@ func count_item(kind: String) -> int:
 	return total
 
 func add_item(kind: String) -> bool:
-	Registry.initialize()
-	if not Registry.catalog.items.has(kind):
+	return add_stack({"kind": kind, "count": 1})
+
+func add_stack(source: Dictionary) -> bool:
+	var kind: String = source.kind
+	var amount: int = int(source.count)
+	if not Registry.catalog.items.has(kind) or not can_add(kind, amount):
 		return false
+	var remaining: int = amount
 	for index in pickup_order():
 		var slot: Dictionary = slots[index]
 		if slot.kind == kind and slot.count < Registry.stack_limit(kind):
-			slot.count += 1
-			return true
+			var count: int = mini(remaining, Registry.stack_limit(kind) - slot.count)
+			slot.count += count
+			remaining -= count
 	for index in pickup_order():
+		if remaining <= 0:
+			break
 		var slot: Dictionary = slots[index]
-		if slot.kind == "":
-			slot.kind = kind
-			slot.count = 1
-			return true
+		if slot.count == 0:
+			var count: int = mini(remaining, Registry.stack_limit(kind))
+			Registry.assign_slot(slot, Registry.stack(kind, count, source))
+			remaining -= count
+	return true
+
+func take_stack(kind: String) -> Dictionary:
+	for slot in slots:
+		if slot.kind == kind and slot.count > 0:
+			var result: Dictionary = Registry.stack(kind, 1, slot)
+			take_from_slot(slots.find(slot))
+			return result
+	return {}
+
+func wear(index: int) -> bool:
+	var slot: Dictionary = slots[index]
+	if slot.count == 0 or not Registry.tool(slot.kind):
+		return false
+	Registry.assign_slot(slot, Registry.stack(slot.kind, 1, slot))
+	slot.durability -= 1
+	if slot.durability <= 0:
+		Registry.clear_slot(slot)
+		return true
 	return false
 
 func can_add(kind: String, amount: int) -> bool:
@@ -46,17 +74,13 @@ func can_add(kind: String, amount: int) -> bool:
 	return amount > 0 and capacity >= amount
 
 func add_items(kind: String, amount: int) -> bool:
-	if not can_add(kind, amount):
-		return false
-	for index in range(amount):
-		add_item(kind)
-	return true
+	return add_stack({"kind": kind, "count": amount})
 
 func pickup_order() -> Array[int]:
 	var order: Array[int] = []
 	for row in range(3, -1, -1):
-		for column in range(8):
-			order.append(row * 8 + column)
+		for column in range(COLUMNS):
+			order.append(row * COLUMNS + column)
 	return order
 
 func take_item(kind: String) -> bool:
@@ -64,7 +88,7 @@ func take_item(kind: String) -> bool:
 		if slot.kind == kind and slot.count > 0:
 			slot.count -= 1
 			if slot.count == 0:
-				slot.kind = ""
+				Registry.clear_slot(slot)
 			return true
 	return false
 
@@ -73,7 +97,7 @@ func take_from_slot(index: int) -> bool:
 		return false
 	slots[index].count -= 1
 	if slots[index].count == 0:
-		slots[index].kind = ""
+		Registry.clear_slot(slots[index])
 	return true
 
 func move_stack(source: int, destination: int) -> bool:
@@ -83,6 +107,10 @@ func move_stack(source: int, destination: int) -> bool:
 	var target: Dictionary = slots[destination]
 	if origin.count == 0:
 		return false
+	if target.kind == origin.kind and Registry.tool(origin.kind) and target != origin:
+		slots[source] = target
+		slots[destination] = origin
+		return true
 	if target.kind == origin.kind:
 		var moved: int = mini(origin.count, Registry.stack_limit(origin.kind) - target.count)
 		if moved == 0:
@@ -90,7 +118,7 @@ func move_stack(source: int, destination: int) -> bool:
 		target.count += moved
 		origin.count -= moved
 		if origin.count == 0:
-			origin.kind = ""
+			Registry.clear_slot(origin)
 	else:
 		slots[source] = target
 		slots[destination] = origin

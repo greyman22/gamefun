@@ -8,9 +8,12 @@ const InventorySlot = preload("res://scripts/inventory_slot.gd")
 const CraftingScript = preload("res://scripts/crafting.gd")
 const StackCursor = preload("res://scripts/core/stack_cursor.gd")
 var stack_cursor = StackCursor.new()
+var hover_panel: PanelContainer
+var hover_label: Label
 var cursor_visual: Control
 var cursor_icon: TextureRect
 var cursor_count: Label
+var cursor_durability: ProgressBar
 var result_press_position := Vector2.ZERO
 var result_drag_moved: bool = false
 var template_buttons: Array[Dictionary] = []
@@ -40,6 +43,7 @@ var held_kind: String = "uninitialized"
 var active_tool: String = "hand"
 var player: CharacterBody3D
 var preview: Node3D
+var bush_focus: Node3D
 var prompt: Label
 var block_grass: Material
 var block_dirt: Material
@@ -102,6 +106,19 @@ func build_outline() -> void:
 			(edge.get_child(0) as MeshInstance3D).cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	preview.visible = false
 	add_child(preview)
+	bush_focus = Node3D.new()
+	for axis in range(3):
+		for first in [-0.5, 0.5]:
+			for second in [-0.5, 0.5]:
+				var center := Vector3.ZERO
+				center[(axis + 1) % 3] = first
+				center[(axis + 2) % 3] = second
+				var dimensions := Vector3.ONE * 0.012
+				dimensions[axis] = 1
+				var edge := box(bush_focus, center, dimensions, material)
+				(edge.get_child(0) as MeshInstance3D).cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	bush_focus.hide()
+	add_child(bush_focus)
 
 func label(text_value: String, font_size: int) -> Label:
 	var result := Label.new()
@@ -121,25 +138,43 @@ func build_ui() -> void:
 	root.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	canvas.add_child(root)
 	update_counter()
-	var crosshair := label("+", 28)
+	# A geometric reticle avoids font baseline offsets; aim is seven pixels above it.
+	var crosshair := Control.new()
+	crosshair.name = "Crosshair"
+	crosshair.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	root.add_child(crosshair)
 	crosshair.set_anchors_and_offsets_preset(Control.PRESET_CENTER)
-	crosshair.position -= Vector2(9, 20)
+	crosshair.offset_left = -7
+	crosshair.offset_right = 7
+	crosshair.offset_top = 0
+	crosshair.offset_bottom = 14
+	for rect in [Rect2(6, 1, 2, 12), Rect2(1, 6, 12, 2)]:
+		var shadow := ColorRect.new()
+		shadow.position = rect.position + Vector2.ONE
+		shadow.size = rect.size
+		shadow.color = Color(0, 0, 0, 0.7)
+		shadow.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		crosshair.add_child(shadow)
+		var line := ColorRect.new()
+		line.position = rect.position
+		line.size = rect.size
+		line.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		crosshair.add_child(line)
 	prompt = label("", 19)
 	root.add_child(prompt)
 	prompt.set_anchors_and_offsets_preset(Control.PRESET_CENTER_BOTTOM)
 	prompt.offset_left = -520
 	prompt.offset_right = 520
-	prompt.offset_top = -155
-	prompt.offset_bottom = -120
+	prompt.offset_top = -187
+	prompt.offset_bottom = -152
 	prompt.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	mining_bar = ProgressBar.new()
 	root.add_child(mining_bar)
 	mining_bar.set_anchors_and_offsets_preset(Control.PRESET_CENTER_BOTTOM)
 	mining_bar.offset_left = -180
 	mining_bar.offset_right = 180
-	mining_bar.offset_top = -190
-	mining_bar.offset_bottom = -174
+	mining_bar.offset_top = -222
+	mining_bar.offset_bottom = -206
 	mining_bar.show_percentage = false
 	mining_bar.visible = false
 	mining_label = label("", 18)
@@ -147,8 +182,8 @@ func build_ui() -> void:
 	mining_label.set_anchors_and_offsets_preset(Control.PRESET_CENTER_BOTTOM)
 	mining_label.offset_left = -240
 	mining_label.offset_right = 240
-	mining_label.offset_top = -225
-	mining_label.offset_bottom = -195
+	mining_label.offset_top = -257
+	mining_label.offset_bottom = -227
 	mining_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	build_inventory_ui(root)
 	build_hotbar(root)
@@ -173,27 +208,27 @@ func build_inventory_ui(root: Control) -> void:
 	var column := VBoxContainer.new()
 	column.add_theme_constant_override("separation", 10)
 	inventory_panel.add_child(column)
-	inventory_title = label("FÖREMÅL — 32 platser", 26)
+	inventory_title = label("FÖREMÅL — 36 platser", 26)
 	column.add_child(inventory_title)
 	column.add_child(label("Vänster: lyft / fördela • Höger: dela stapel • Shift-klick: flytta till arbetsytan", 16))
 	var content := HBoxContainer.new()
 	content.add_theme_constant_override("separation", 16)
 	column.add_child(content)
 	var grid := GridContainer.new()
-	grid.columns = 8
+	grid.columns = 9
 	grid.add_theme_constant_override("h_separation", 6)
 	grid.add_theme_constant_override("v_separation", 6)
 	content.add_child(grid)
-	for index in range(32):
+	for index in range(36):
 		var panel := InventorySlot.new()
 		panel.world = self
 		panel.slot_index = index
-		panel.custom_minimum_size = Vector2(78, 78)
+		panel.custom_minimum_size = Vector2(68, 68)
 		grid.add_child(panel)
 		inventory_slots.append(panel)
 	build_crafting_ui(content)
 	build_recipe_list(content)
-	column.add_child(label("Nedersta raden = snabbval 1–8 • Tom plats = hand • E / Esc stänger", 17))
+	column.add_child(label("Nedersta raden = snabbval 1–9 • Tom plats = hand • E / Esc stänger", 17))
 	inventory_panel.visible = false
 
 func build_crafting_ui(parent: Control) -> void:
@@ -231,13 +266,13 @@ func rebuild_crafting_slots() -> void:
 	for index in range(crafting.slots.size()):
 		var slot := InventorySlot.new()
 		slot.world = self
-		slot.slot_index = 32 + index
+		slot.slot_index = 36 + index
 		slot.custom_minimum_size = Vector2(56, 56)
 		crafting_grid.add_child(slot)
 		crafting_slots.append(slot)
-	crafting_output.slot_index = 32 + crafting.slots.size()
+	crafting_output.slot_index = 36 + crafting.slots.size()
 	crafting_title.text = "ARBETSBÄNK  3 × 3" if crafting.width == 3 else "TILLVERKA  2 × 2"
-	inventory_title.text = "ARBETSBÄNK OCH INVENTARIUM" if crafting.width == 3 else "FÖREMÅL — 32 platser"
+	inventory_title.text = "ARBETSBÄNK OCH INVENTARIUM" if crafting.width == 3 else "FÖREMÅL — 36 platser"
 	crafting_help.text = "Välj en receptmall till höger.\nDra resultatet till en ledig plats." if crafting.width == 3 else "1 stam → 4 träklossar\n2 klossar på höjden → 4 pinnar\n4 klossar i fyrkant → arbetsbänk"
 	crafting_status.text = "Lyft en stapel och håll vänster\nför att fördela över flera rutor."
 
@@ -256,15 +291,37 @@ func build_cursor_visual() -> void:
 	cursor_icon.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	cursor_visual.add_child(cursor_icon)
 	cursor_count = label("", 18)
-	cursor_count.position = Vector2(30, 30)
+	cursor_count.position = Vector2(24, 24)
 	cursor_count.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	cursor_visual.add_child(cursor_count)
+	cursor_durability = ProgressBar.new()
+	cursor_durability.position = Vector2(2, 45)
+	cursor_durability.size = Vector2(44, 4)
+	cursor_durability.show_percentage = false
+	cursor_durability.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	cursor_visual.add_child(cursor_durability)
 	cursor_visual.visible = false
+	hover_panel = PanelContainer.new()
+	hover_panel.name = "InventoryHover"
+	hover_panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var tooltip_style := StyleBoxFlat.new()
+	tooltip_style.bg_color = Color(0.035, 0.05, 0.04, 0.97)
+	tooltip_style.border_color = Color(0.5, 0.6, 0.5)
+	tooltip_style.set_border_width_all(1)
+	tooltip_style.set_content_margin_all(10)
+	hover_panel.add_theme_stylebox_override("panel", tooltip_style)
+	hover_label = label("", 16)
+	hover_label.custom_minimum_size.x = 320
+	hover_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	hover_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	hover_panel.add_child(hover_label)
+	layer.add_child(hover_panel)
+	hover_panel.hide()
 
 func build_recipe_list(parent: Control) -> void:
 	var side := VBoxContainer.new()
 	side.custom_minimum_size.x = 168
-	side.add_theme_constant_override("separation", 7)
+	side.add_theme_constant_override("separation", 4)
 	parent.add_child(side)
 	side.add_child(label("RECEPT", 20))
 	var seen: Dictionary = {}
@@ -273,7 +330,7 @@ func build_recipe_list(parent: Control) -> void:
 			continue
 		seen[recipe.kind] = true
 		var button := Button.new()
-		button.custom_minimum_size = Vector2(168, 47)
+		button.custom_minimum_size = Vector2(168, 38)
 		var row := HBoxContainer.new()
 		row.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		button.add_child(row)
@@ -284,7 +341,7 @@ func build_recipe_list(parent: Control) -> void:
 		row.offset_bottom = -5
 		var icon := TextureRect.new()
 		icon.texture = item_icons.get(recipe.kind)
-		icon.custom_minimum_size = Vector2(30, 30)
+		icon.custom_minimum_size = Vector2(24, 24)
 		icon.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 		icon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
 		icon.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -308,15 +365,49 @@ func fill_recipe_template(recipe: Dictionary) -> void:
 		crafting_status.text = "Resurser eller ledigt utrymme saknas."
 	update_counter()
 
+func update_inventory_hover() -> void:
+	if not is_instance_valid(hover_panel):
+		return
+	hover_panel.hide()
+	if not player.inventory_open:
+		return
+	var point := get_viewport().get_mouse_position()
+	var widgets: Array = []
+	var storage_ui: Node = get("chest_ui")
+	if is_instance_valid(storage_ui) and storage_ui.visible:
+		widgets.assign(storage_ui.widgets)
+	else:
+		widgets.assign(inventory_slots)
+		widgets.append_array(crafting_slots)
+		widgets.append(crafting_output)
+	for widget: Control in widgets:
+		if is_instance_valid(widget) and widget.is_visible_in_tree() and widget.get_global_rect().has_point(point):
+			hover_label.text = widget.tooltip_text
+			hover_panel.reset_size()
+			var bounds := get_viewport().get_visible_rect().size
+			hover_panel.position = Vector2(clampf(point.x + 18, 0, maxf(0, bounds.x - hover_panel.size.x - 8)), clampf(point.y + 22, 0, maxf(0, bounds.y - hover_panel.size.y - 8)))
+			hover_panel.show()
+			return
+
 func update_cursor_visual() -> void:
 	if not is_instance_valid(cursor_visual):
 		return
+	update_inventory_hover()
 	cursor_visual.visible = player.inventory_open and stack_cursor.held.count > 0
 	cursor_visual.position = get_viewport().get_mouse_position() - cursor_icon.size * 0.5
 	cursor_icon.texture = item_icons.get(stack_cursor.held.kind)
 	var plan: Dictionary = stack_cursor.preview()
-	cursor_count.text = str(plan.held.count) if plan.held.count > 0 else ""
+	cursor_count.text = str(plan.held.count) if plan.held.count > 0 and not Registry.tool(stack_cursor.held.kind) else ""
 	cursor_icon.modulate.a = 0.65 if stack_cursor.left_down and plan.held.count == 0 else 1.0
+	cursor_durability.visible = false
+	if stack_cursor.held.count > 0 and Registry.tool(stack_cursor.held.kind):
+		var maximum: int = int(stack_cursor.held.get("max_durability", Registry.durability_max(stack_cursor.held.kind)))
+		var ratio: float = float(Registry.remaining_uses(stack_cursor.held)) / maximum
+		cursor_durability.visible = ratio < 1
+		cursor_durability.value = ratio * 100
+		var fill := StyleBoxFlat.new()
+		fill.bg_color = Color(1, 0.16, 0.1, 0.8) if ratio < 0.1 else (Color(1, 0.8, 0.1, 0.8) if ratio < 0.3 else Color(0.65, 0.95, 0.75, 0.65))
+		cursor_durability.add_theme_stylebox_override("fill", fill)
 
 func slot_at_pointer(point: Vector2) -> int:
 	for slot in inventory_slots + crafting_slots:
@@ -349,8 +440,8 @@ func handle_inventory_event(event: InputEvent) -> bool:
 	return false
 
 func slot_data(index: int) -> Dictionary:
-	if index >= 32 and index < 32 + crafting.slots.size():
-		return crafting.slots[index - 32]
+	if index >= 36 and index < 36 + crafting.slots.size():
+		return crafting.slots[index - 36]
 	return inventory.slots[index]
 
 func craft_result(all_batches: bool = false) -> void:
@@ -377,38 +468,38 @@ func build_hotbar(root: Control) -> void:
 	hotbar = HBoxContainer.new()
 	root.add_child(hotbar)
 	hotbar.set_anchors_and_offsets_preset(Control.PRESET_CENTER_BOTTOM)
-	hotbar.offset_left = -341
-	hotbar.offset_right = 341
+	hotbar.offset_left = -384
+	hotbar.offset_right = 384
 	hotbar.offset_top = -96
 	hotbar.offset_bottom = -16
 	hotbar.add_theme_constant_override("separation", 6)
-	for index in range(8):
+	for index in range(9):
 		var slot := InventorySlot.new()
 		slot.world = self
-		slot.slot_index = 24 + index
+		slot.slot_index = 27 + index
 		slot.draggable = false
 		slot.custom_minimum_size = Vector2(80, 80)
 		hotbar.add_child(slot)
 		hotbar_slots.append(slot)
 
 func selected_kind() -> String:
-	var slot: Dictionary = inventory.slots[24 + selected_hotbar]
+	var slot: Dictionary = inventory.slots[27 + selected_hotbar]
 	return slot.kind if slot.count > 0 else ""
 
 func select_hotbar(index: int) -> void:
-	selected_hotbar = posmod(index, 8)
+	selected_hotbar = posmod(index, 9)
 	reset_mining()
 	update_counter()
 
 func inventory_slot_clicked(index: int, movable: bool) -> void:
 	if not movable:
-		select_hotbar(index - 24)
+		select_hotbar(index - 27)
 		return
 	if move_source >= 0:
 		move_inventory(move_source, index)
 	else:
-		if index >= 24 and index < 32:
-			select_hotbar(index - 24)
+		if index >= 27 and index < 36:
+			select_hotbar(index - 27)
 		if slot_data(index).count > 0:
 			move_source = index
 		refresh_slots()
@@ -425,11 +516,11 @@ func refresh_slots() -> void:
 	var kind := selected_kind()
 	active_tool = kind if Registry.tool(kind) else "hand"
 	for index in range(inventory_slots.size()):
-		inventory_slots[index].refresh(planned.get(index, inventory.slots[index]), index == selected_hotbar + 24, stack_cursor.painted.has(index))
+		inventory_slots[index].refresh(planned.get(index, inventory.slots[index]), index == selected_hotbar + 27, stack_cursor.painted.has(index))
 	for index in range(hotbar_slots.size()):
-		hotbar_slots[index].refresh(planned.get(index + 24, inventory.slots[index + 24]), index == selected_hotbar)
+		hotbar_slots[index].refresh(planned.get(index + 27, inventory.slots[index + 27]), index == selected_hotbar)
 	for index in range(crafting_slots.size()):
-		crafting_slots[index].refresh(planned.get(index + 32, crafting.slots[index]), false, stack_cursor.painted.has(index + 32))
+		crafting_slots[index].refresh(planned.get(index + 36, crafting.slots[index]), false, stack_cursor.painted.has(index + 36))
 	if is_instance_valid(crafting_output):
 		var result: Dictionary = crafting.recipe()
 		crafting_output.refresh(result if not result.is_empty() else {"kind": "", "count": 0}, not result.is_empty())
@@ -459,7 +550,15 @@ func update_held_item() -> void:
 		held_item.rotation = HELD_ROTATION
 		swing_phase = 0
 		swing_blend = 0
-		if Registry.tool(kind):
+		if kind == "raw_chicken":
+			ItemVisuals.raw_chicken_model(held_item)
+		elif kind == "egg":
+			ItemVisuals.egg_model(held_item)
+		elif kind == "blueberry":
+			ItemVisuals.blueberry_model(held_item)
+		elif kind == "soul_remnant":
+			ItemVisuals.soul_remnant_model(held_item)
+		elif Registry.tool(kind):
 			ItemVisuals.tool_model(held_item, kind)
 		elif kind == "torch":
 			ItemVisuals.torch_model(held_item)

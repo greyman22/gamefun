@@ -39,7 +39,7 @@ func check_catalog() -> void:
 	expect(Registry.install(expanded), "Registry must accommodate 50 additional block types and 100 items")
 	expect(Registry.id("test_block_49") == 149 and Registry.cube(149), "Stable IDs must not depend on array order")
 	var bag := Inventory.new()
-	expect(bag.add_items("test_item_99", 17) and bag.slots[24].count == 16 and bag.slots[25].count == 1, "Item registry must control stack limits")
+	expect(bag.add_items("test_item_99", 17) and bag.slots[27].count == 16 and bag.slots[28].count == 1, "Item registry must control stack limits")
 	var wrong: Dictionary = expanded.duplicate(true)
 	wrong.blocks.test_block_49.id = 1
 	expect(not Registry.install(wrong), "Duplicate IDs must be rejected without replacing working registry")
@@ -105,12 +105,12 @@ func check_crafting() -> void:
 	var bag := Inventory.new()
 	var crafting := Crafting.new()
 	bag.add_items("wood", 2)
-	crafting.transfer(bag, 24, 32)
+	crafting.transfer(bag, 27, 36)
 	expect(crafting.craft(bag) and bag.count_item("planks") == 4, "Log conversion must remain usable")
-	crafting.transfer(bag, 25, 32)
-	crafting.transfer(bag, 25, 34)
+	crafting.transfer(bag, 28, 36)
+	crafting.transfer(bag, 28, 38)
 	expect(crafting.craft(bag) and bag.count_item("stick") == 4, "Stick recipe must remain usable")
-	crafting.transfer(bag, 24, 35)
+	crafting.transfer(bag, 27, 39)
 	expect(crafting.return_ingredients(bag) and bag.count_item("wood") == 1, "Closing crafting must return ingredients")
 	var bench := Crafting.new(3)
 	for row in range(3):
@@ -120,7 +120,7 @@ func check_crafting() -> void:
 	bag = Inventory.new()
 	bag.add_items("dirt", 512)
 	bag.add_item("wood")
-	expect(bag.slots[16].kind == "wood", "Inventory must still fill bottom-up")
+	expect(bag.slots[35].kind == "wood", "Inventory must still fill bottom-up")
 
 func fixture() -> Dictionary:
 	var data := Data.new(41829)
@@ -138,15 +138,15 @@ func check_storage() -> void:
 	var saved := fixture()
 	expect(Save.save(saved, root) == OK, "Compressed checkpoint must save")
 	var loaded: Dictionary = Save.load_world(saved.world.world_id, root)
-	expect(not loaded.is_empty() and loaded.inventory[24].count == 7, "Checkpoint must preserve inventory")
+	expect(not loaded.is_empty() and loaded.inventory[27].count == 7, "Checkpoint must preserve inventory")
 	expect(loaded.world.entities.future_monster.state.health == 17, "Future actor state must survive save without requiring a scene")
-	saved.inventory[24].count = 6
+	saved.inventory[27].count = 6
 	expect(Save.save(saved, root) == OK, "Second save must create recoverable backup")
 	var corrupt := FileAccess.open_compressed(root.path_join(saved.world.world_id).path_join("world.save"), FileAccess.WRITE)
 	corrupt.store_var({"format_version": 999})
 	corrupt.close()
 	loaded = Save.load_world(saved.world.world_id, root)
-	expect(loaded.inventory[24].count == 7, "Corrupt primary must fall back to last complete backup")
+	expect(loaded.inventory[27].count == 7, "Corrupt primary must fall back to last complete backup")
 	expect(Save.load_world("../outside", root).is_empty(), "Save slot paths must remain within save directory")
 
 func check_game() -> void:

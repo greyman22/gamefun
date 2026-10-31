@@ -26,7 +26,7 @@ func changed(_cell: Vector3i) -> void:
 	elapsed = 1
 
 func build_now(key: Vector3i) -> void:
-	var job := Job.new(model.seed_value, key, model.worker_edits(key), base_cache)
+	var job := Job.new(model.seed_value, key, model.worker_edits(key), base_cache, model.worker_chest_pairs(key))
 	job.run()
 	apply(key, job.result, int(model.revisions.get(key, 0)), true)
 
@@ -47,7 +47,7 @@ func refresh_desired(position: Vector3) -> void:
 	for x in range(center.x - radius, center.x + radius + 1):
 		for z in range(center.z - radius, center.z + radius + 1):
 			var distance: float = Vector2(x * 16 + 8 - position.x, z * 16 + 8 - position.z).length()
-			if distance > view_distance + 16 or absi(x) > 16 or absi(z) > 16:
+			if distance > view_distance + 16 or x * 16 < -Generator.HALF_WORLD or x * 16 >= Generator.HALF_WORLD or z * 16 < -Generator.HALF_WORLD or z * 16 >= Generator.HALF_WORLD:
 				continue
 			var surface: int = floori(float(model.generator.height(x * 16 + 8, z * 16 + 8)) / 16)
 			var levels: Dictionary = {surface: true, surface - 1: true, surface + 1: true}
@@ -89,7 +89,7 @@ func tick(position: Vector3, delta: float) -> void:
 	for key: Vector3i in order:
 		if tasks.has(key) or (chunks.has(key) and chunks[key].revision == int(model.revisions.get(key, 0))):
 			continue
-		var job := Job.new(model.seed_value, key, model.worker_edits(key), base_cache)
+		var job := Job.new(model.seed_value, key, model.worker_edits(key), base_cache, model.worker_chest_pairs(key))
 		var id: int = WorkerThreadPool.add_task(job.run, false, "Voxel chunk")
 		tasks[key] = {"id": id, "job": job, "revision": int(model.revisions.get(key, 0))}
 		if tasks.size() >= max_tasks:

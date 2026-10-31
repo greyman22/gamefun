@@ -4,7 +4,7 @@ const VERSION: int = 1
 const SIZE: int = 16
 const MIN_Y: int = -64
 const MAX_Y: int = 63
-const HALF_WORLD: int = 256
+const HALF_WORLD: int = 1024
 var seed_value: int
 var noise := FastNoiseLite.new()
 var column_cache: Dictionary = {}

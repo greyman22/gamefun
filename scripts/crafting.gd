@@ -75,7 +75,7 @@ func return_ingredients(inventory: RefCounted) -> bool:
 	var restored = inventory.get_script().new()
 	restored.slots.assign(inventory.slots.duplicate(true))
 	for slot in slots:
-		if slot.count > 0 and not restored.add_items(slot.kind, slot.count):
+		if slot.count > 0 and not restored.add_stack(slot):
 			return false
 	inventory.slots.assign(restored.slots)
 	for slot in slots:
@@ -84,29 +84,28 @@ func return_ingredients(inventory: RefCounted) -> bool:
 	return true
 
 func transfer(inventory: RefCounted, source: int, destination: int) -> bool:
-	if source < 0 or source >= 32 + slots.size() or destination < 0 or destination >= 32 + slots.size() or source == destination:
+	if source < 0 or source >= 36 + slots.size() or destination < 0 or destination >= 36 + slots.size() or source == destination:
 		return false
-	if source < 32 and destination < 32:
+	if source < 36 and destination < 36:
 		return inventory.move_stack(source, destination)
-	var origin: Dictionary = inventory.slots[source] if source < 32 else slots[source - 32]
-	var target: Dictionary = inventory.slots[destination] if destination < 32 else slots[destination - 32]
+	var origin: Dictionary = inventory.slots[source] if source < 36 else slots[source - 36]
+	var target: Dictionary = inventory.slots[destination] if destination < 36 else slots[destination - 36]
 	if origin.count == 0:
 		return false
 	if target.count > 0 and target.kind != origin.kind:
-		if source >= 32 and destination >= 32:
-			slots[source - 32] = target
-			slots[destination - 32] = origin
+		if source >= 36 and destination >= 36:
+			slots[source - 36] = target
+			slots[destination - 36] = origin
 			return true
 		return false
 	var amount: int = mini(origin.count, Registry.stack_limit(origin.kind) - target.count)
 	# Deposit one ingredient per drop, making multi-slot recipes easy to lay out.
-	if source < 32 and destination >= 32:
+	if source < 36 and destination >= 36:
 		amount = mini(amount, 1)
 	if amount <= 0:
 		return false
-	target.kind = origin.kind
-	target.count += amount
+	Registry.fill_slot(target, origin, amount)
 	origin.count -= amount
 	if origin.count == 0:
-		origin.kind = ""
+		Registry.clear_slot(origin)
 	return true
