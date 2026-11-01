@@ -49,18 +49,18 @@ func run() -> void:
 	world.player.position = Vector3(0.5, 0.05, 12.5)
 	world.player.rotation = Vector3.ZERO
 	world.player.camera.rotation = Vector3.ZERO
-	world.inventory.slots[24] = {"kind": "stone_sword", "count": 1}
+	world.inventory.slots[27] = {"kind": "stone_sword", "count": 1}
 	world.select_hotbar(0)
 	await physics_frame
 	await physics_frame
 	expect(world.try_attack(), "Sword sweep must find creatures in the front semicircle")
-	expect(Registry.remaining_uses(world.inventory.slots[24]) == 99, "A three-target sweep must cost one weapon use, not three")
+	expect(Registry.remaining_uses(world.inventory.slots[27]) == 99, "A three-target sweep must cost one weapon use, not three")
 	var sword_damage: float = Combat.damage(25, 30)
 	for index in range(5):
 		var expected: float = 100 - sword_damage if index < 3 else 100
 		expect(is_equal_approx(world.entity_system.active[ids[index]].health, expected), "Sweep must hit all three front targets and exclude rear/occluded targets")
 	expect(world.attack_cooldown == 0.5, "A multi-target sweep must consume only one attack interval")
-	world.inventory.slots[24] = {"kind": "axe", "count": 1}
+	world.inventory.slots[27] = {"kind": "axe", "count": 1}
 	world.select_hotbar(0)
 	world.player.camera.look_at(positions[0] + Vector3(0, 1.4, 0))
 	world.attack_cooldown = 0

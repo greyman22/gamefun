@@ -58,7 +58,7 @@ static func label(kind_name: String) -> String:
 	return catalog.items.get(kind_name, catalog.blocks.get(kind_name, {})).get("name", "Hand" if kind_name == "" else kind_name)
 
 static func cube(value: int) -> bool:
-	return value != 0 and catalog.blocks.get(kind(value), {}).get("shape", "cube") == "cube"
+	return value != 0 and catalog.blocks.get(kind(value), {}).get("shape", "cube") in ["cube", "door", "fence"]
 
 static func breakable(kind_name: String) -> bool:
 	return kind_name != "air" and catalog.blocks.get(kind_name, {}).get("breakable", true)
@@ -73,8 +73,8 @@ static func seconds(tool_name: String, kind_name: String) -> float:
 	if not breakable(kind_name):
 		return INF
 	var block: Dictionary = catalog.blocks.get(kind_name, {})
-	var base: float = float(block.get("seconds", 4.5))
-	return base / 3.0 if block.get("tool", "") == tool_name else base
+	var base: float = float(block.get("seconds", 3.0))
+	return float(block.get("tool_seconds", 0.7)) if block.get("tool", "") == tool_name else base
 
 static func drops(tool_name: String, kind_name: String) -> bool:
 	var block: Dictionary = catalog.blocks.get(kind_name, {})

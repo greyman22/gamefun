@@ -1,0 +1,97 @@
+{
+  "farmland": [
+    "earth",
+    "farmland",
+    "earth"
+  ],
+  "gate": [
+    "planks",
+    "planks",
+    "planks"
+  ],
+  "gate_open": [
+    "planks",
+    "planks",
+    "planks"
+  ],
+  "fence": [
+    "planks",
+    "planks",
+    "planks"
+  ],
+  "air": [
+    "earth",
+    "earth",
+    "earth"
+  ],
+  "stone": [
+    "stone",
+    "stone",
+    "stone"
+  ],
+  "dirt": [
+    "earth_grass",
+    "grass",
+    "earth"
+  ],
+  "wood": [
+    "bark",
+    "log_end",
+    "log_end"
+  ],
+  "foliage": [
+    "leaves",
+    "leaves",
+    "leaves"
+  ],
+  "planks": [
+    "planks",
+    "planks",
+    "planks"
+  ],
+  "workbench": [
+    "bench_side",
+    "bench_top",
+    "planks"
+  ],
+  "chest": [
+    "chest_side",
+    "chest_top",
+    "planks"
+  ],
+  "bedrock": [
+    "bedrock",
+    "bedrock",
+    "bedrock"
+  ],
+  "soul_block": [
+    "soul",
+    "soul",
+    "soul"
+  ],
+  "torch": [
+    "bark",
+    "bark",
+    "bark"
+  ],
+  "door": [
+    "planks",
+    "planks",
+    "planks"
+  ],
+  "door_top": [
+    "planks",
+    "planks",
+    "planks"
+  ],
+  "door_open": [
+    "planks",
+    "planks",
+    "planks"
+  ],
+  "door_top_open": [
+    "planks",
+    "planks",
+    "planks"
+  ]
+}

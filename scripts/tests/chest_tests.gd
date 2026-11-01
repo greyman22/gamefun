@@ -82,6 +82,8 @@ func run() -> void:
 	if "--capture-ui" in OS.get_cmdline_user_args():
 		world.player.position = Vector3(3.8, 35.4, 6.7)
 		world.player.camera.look_at(Vector3(3.5, 35.4, 2.5))
+		world.update_daylight(0.5)
+		world.day_hud.refresh(0)
 		await process_frame
 		await RenderingServer.frame_post_draw
 		root.get_texture().get_image().save_png("res://chests-world-preview.png")

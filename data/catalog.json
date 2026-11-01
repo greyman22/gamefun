@@ -1,50 +1,397 @@
 {
   "version": 1,
   "blocks": {
-    "chest": {"id": 10, "name": "Kista", "color": "b77b35", "tool": "axe", "interaction": "storage"},
-    "air": {"id": 0, "name": "Luft", "shape": "none", "color": "000000"},
-    "stone": {"id": 1, "name": "Stenblock", "color": "88939e", "tool": "pickaxe", "requires_tool_for_drop": true},
-    "dirt": {"id": 2, "name": "Jordblock", "color": "88603b", "tool": "shovel", "grass": true},
-    "wood": {"id": 3, "name": "Trädstam", "color": "986032", "tool": "axe"},
-    "foliage": {"id": 4, "name": "Grenverk", "color": "386c25", "tool": "axe", "drop": false},
-    "planks": {"id": 5, "name": "Träkloss", "color": "bf925c", "tool": "axe"},
-    "workbench": {"id": 6, "name": "Arbetsbänk", "color": "906336", "tool": "axe", "interaction": "crafting"},
-    "bedrock": {"id": 7, "name": "Berggrund", "color": "303940", "breakable": false, "drop": false},
-    "soul_block": {"id": 9, "name": "Själblock", "color": "7634ad", "tool": "pickaxe"},
-    "torch": {"id": 8, "name": "Fackla", "shape": "torch", "color": "ffad41", "seconds": 0.3}
+    "gate": {
+      "id": 16,
+      "name": "Grind",
+      "color": "a77b49",
+      "shape": "fence",
+      "tool": "axe",
+      "interaction": "door"
+    },
+    "gate_open": {
+      "id": 17,
+      "name": "Grind",
+      "color": "a77b49",
+      "shape": "none",
+      "tool": "axe"
+    },
+    "fence": {
+      "id": 15,
+      "name": "Tr\u00e4staket",
+      "color": "a77b49",
+      "shape": "fence",
+      "tool": "axe",
+      "tool_seconds": 0.7
+    },
+    "door": {
+      "id": 11,
+      "name": "D\u00f6rr",
+      "color": "b98b54",
+      "shape": "door",
+      "tool": "axe",
+      "interaction": "door"
+    },
+    "door_top": {
+      "id": 12,
+      "name": "D\u00f6rr",
+      "color": "b98b54",
+      "shape": "door",
+      "tool": "axe",
+      "drop": false
+    },
+    "door_open": {
+      "id": 13,
+      "name": "D\u00f6rr",
+      "color": "b98b54",
+      "shape": "none",
+      "tool": "axe"
+    },
+    "door_top_open": {
+      "id": 14,
+      "name": "D\u00f6rr",
+      "color": "b98b54",
+      "shape": "none",
+      "tool": "axe",
+      "drop": false
+    },
+    "chest": {
+      "id": 10,
+      "name": "Kista",
+      "color": "b77b35",
+      "tool": "axe",
+      "interaction": "storage"
+    },
+    "air": {
+      "id": 0,
+      "name": "Luft",
+      "shape": "none",
+      "color": "000000"
+    },
+    "stone": {
+      "id": 1,
+      "tool_seconds": 0.7,
+      "name": "Stenblock",
+      "color": "88939e",
+      "tool": "pickaxe",
+      "requires_tool_for_drop": true
+    },
+    "dirt": {
+      "id": 2,
+      "tool_seconds": 0.7,
+      "name": "Jordblock",
+      "color": "88603b",
+      "tool": "shovel",
+      "grass": true
+    },
+    "wood": {
+      "id": 3,
+      "tool_seconds": 0.7,
+      "name": "Tr\u00e4dstam",
+      "color": "986032",
+      "tool": "axe"
+    },
+    "foliage": {
+      "id": 4,
+      "tool_seconds": 0.7,
+      "name": "Grenverk",
+      "color": "386c25",
+      "tool": "axe",
+      "drop": false
+    },
+    "planks": {
+      "id": 5,
+      "name": "Tr\u00e4kloss",
+      "color": "bf925c",
+      "tool": "axe"
+    },
+    "workbench": {
+      "id": 6,
+      "name": "Arbetsb\u00e4nk",
+      "color": "906336",
+      "tool": "axe",
+      "interaction": "crafting"
+    },
+    "bedrock": {
+      "id": 7,
+      "name": "Berggrund",
+      "color": "303940",
+      "breakable": false,
+      "drop": false
+    },
+    "soul_block": {
+      "id": 9,
+      "name": "Sj\u00e4lblock",
+      "color": "7634ad",
+      "tool": "pickaxe"
+    },
+    "torch": {
+      "id": 8,
+      "name": "Fackla",
+      "shape": "torch",
+      "color": "ffad41",
+      "seconds": 0.3
+    },
+    "farmland": {
+      "id": 18,
+      "name": "Odlingsjord",
+      "color": "654429",
+      "tool": "shovel",
+      "tool_seconds": 0.7
+    }
   },
   "items": {
-    "raw_chicken": {"name": "R\u00e5 kyckling", "stack": 64},
-    "egg": {"name": "\u00c4gg", "stack": 64},
-    "chest": {"name": "Kista", "block": "chest", "stack": 64},
-    "blueberry": {"name": "Blåbär", "stack": 64, "description": "Håll höger musknapp i två sekunder för att äta: +5 % mättnad. Högerklicka på en jordyta för att plantera en buske."},
-    "soul_block": {"name": "Själblock", "block": "soul_block", "stack": 64},
-    "soul_remnant": {"name": "Själsrest", "stack": 64, "description": "En glödande rest av magin som höll zombien vid liv. Sparas till framtida förtrollningar och utrustningsförbättringar."},
-    "stone_sword": {"name": "Stensvärd", "tool": true, "stack": 1, "max_uses": 100},
-    "foliage": {"name": "Grenverk", "block": "foliage", "stack": 64},
-    "bedrock": {"name": "Berggrund", "block": "bedrock", "stack": 64},
-    "stone": {"name": "Stenblock", "block": "stone", "stack": 64},
-    "dirt": {"name": "Jordblock", "block": "dirt", "stack": 64},
-    "wood": {"name": "Trädstam", "block": "wood", "stack": 64},
-    "planks": {"name": "Träkloss", "block": "planks", "stack": 64},
-    "workbench": {"name": "Arbetsbänk", "block": "workbench", "stack": 64},
-    "torch": {"name": "Fackla", "block": "torch", "stack": 64},
-    "stick": {"name": "Träpinne", "stack": 64},
-    "axe": {"name": "Yxa", "tool": true, "stack": 1, "max_uses": 100},
-    "pickaxe": {"name": "Hacka", "tool": true, "stack": 1, "max_uses": 100},
-    "shovel": {"name": "Spade", "tool": true, "stack": 1, "max_uses": 100}
+    "gate": {
+      "name": "Grind",
+      "block": "gate",
+      "stack": 64
+    },
+    "fence": {
+      "name": "Tr\u00e4staket",
+      "block": "fence",
+      "stack": 64
+    },
+    "door": {
+      "name": "D\u00f6rr",
+      "block": "door",
+      "stack": 64
+    },
+    "raw_chicken": {
+      "name": "R\u00e5 kyckling",
+      "stack": 64
+    },
+    "egg": {
+      "name": "\u00c4gg",
+      "stack": 64
+    },
+    "chest": {
+      "name": "Kista",
+      "block": "chest",
+      "stack": 64
+    },
+    "blueberry": {
+      "name": "Bl\u00e5b\u00e4r",
+      "stack": 64,
+      "description": "H\u00e5ll h\u00f6ger musknapp i tv\u00e5 sekunder f\u00f6r att \u00e4ta: +5 % m\u00e4ttnad. H\u00f6gerklicka p\u00e5 en jordyta f\u00f6r att plantera en buske."
+    },
+    "soul_block": {
+      "name": "Sj\u00e4lblock",
+      "block": "soul_block",
+      "stack": 64
+    },
+    "soul_remnant": {
+      "name": "Sj\u00e4lsrest",
+      "stack": 64,
+      "description": "En gl\u00f6dande rest av magin som h\u00f6ll zombien vid liv. Sparas till framtida f\u00f6rtrollningar och utrustningsf\u00f6rb\u00e4ttringar."
+    },
+    "stone_sword": {
+      "name": "Stensv\u00e4rd",
+      "tool": true,
+      "stack": 1,
+      "max_uses": 100
+    },
+    "foliage": {
+      "name": "Grenverk",
+      "block": "foliage",
+      "stack": 64
+    },
+    "bedrock": {
+      "name": "Berggrund",
+      "block": "bedrock",
+      "stack": 64
+    },
+    "stone": {
+      "name": "Stenblock",
+      "block": "stone",
+      "stack": 64
+    },
+    "dirt": {
+      "name": "Jordblock",
+      "block": "dirt",
+      "stack": 64
+    },
+    "wood": {
+      "name": "Tr\u00e4dstam",
+      "block": "wood",
+      "stack": 64
+    },
+    "planks": {
+      "name": "Tr\u00e4kloss",
+      "block": "planks",
+      "stack": 64
+    },
+    "workbench": {
+      "name": "Arbetsb\u00e4nk",
+      "block": "workbench",
+      "stack": 64
+    },
+    "torch": {
+      "name": "Fackla",
+      "block": "torch",
+      "stack": 64
+    },
+    "stick": {
+      "name": "Tr\u00e4pinne",
+      "stack": 64
+    },
+    "axe": {
+      "name": "Yxa",
+      "tool": true,
+      "stack": 1,
+      "max_uses": 100
+    },
+    "pickaxe": {
+      "name": "Gruvhacka",
+      "tool": true,
+      "stack": 1,
+      "max_uses": 100
+    },
+    "shovel": {
+      "name": "Spade",
+      "tool": true,
+      "stack": 1,
+      "max_uses": 100
+    },
+    "hoe": {
+      "name": "Jordhacka",
+      "tool": true,
+      "stack": 1,
+      "max_uses": 100
+    },
+    "grass_seed": {
+      "name": "Gr\u00e4sfr\u00f6",
+      "stack": 64
+    },
+    "grain": {
+      "name": "S\u00e4desstr\u00e5",
+      "stack": 64
+    },
+    "bread": {
+      "name": "Br\u00f6d",
+      "stack": 64
+    }
   },
   "recipes": [
-    {"width": 2, "pattern": "wood", "kind": "planks", "count": 4},
-    {"width": 2, "pattern": "planks/planks", "kind": "stick", "count": 4},
-    {"width": 2, "pattern": "planks,planks/planks,planks", "kind": "workbench", "count": 1},
-    {"width": 3, "pattern": "stone,stone,stone/.,stick,./.,stick,.", "kind": "pickaxe", "count": 1},
-    {"width": 3, "pattern": "stone/stick/stick", "kind": "shovel", "count": 1},
-    {"width": 3, "pattern": "stone,stone/stick,stone/stick,.", "kind": "axe", "count": 1},
-    {"width": 3, "pattern": "stone,stone/stone,stick/.,stick", "kind": "axe", "count": 1},
-    {"width": 3, "pattern": "stone/stone/stick", "kind": "stone_sword", "count": 1},
-    {"width": 3, "pattern": "soul_remnant,soul_remnant,soul_remnant/soul_remnant,soul_remnant,soul_remnant/soul_remnant,soul_remnant,soul_remnant", "kind": "soul_block", "count": 1},
-    {"width": 3, "pattern": "wood,wood,wood/wood,.,wood/wood,wood,wood", "kind": "chest", "count": 1}
+    {
+      "width": 2,
+      "pattern": "wood",
+      "kind": "planks",
+      "count": 4
+    },
+    {
+      "width": 3,
+      "pattern": "stick,planks,stick/stick,planks,stick",
+      "kind": "gate",
+      "count": 1
+    },
+    {
+      "width": 3,
+      "pattern": "planks,stick,planks/planks,stick,planks",
+      "kind": "fence",
+      "count": 6
+    },
+    {
+      "width": 3,
+      "pattern": "planks,planks/planks,planks/planks,planks",
+      "kind": "door",
+      "count": 1
+    },
+    {
+      "width": 2,
+      "pattern": "planks/planks",
+      "kind": "stick",
+      "count": 4
+    },
+    {
+      "width": 2,
+      "pattern": "planks,planks/planks,planks",
+      "kind": "workbench",
+      "count": 1
+    },
+    {
+      "width": 3,
+      "pattern": "stone,stone,stone/.,stick,./.,stick,.",
+      "kind": "pickaxe",
+      "count": 1
+    },
+    {
+      "width": 3,
+      "pattern": "stone/stick/stick",
+      "kind": "shovel",
+      "count": 1
+    },
+    {
+      "width": 3,
+      "pattern": "stone,stone/stick,stone/stick,.",
+      "kind": "axe",
+      "count": 1
+    },
+    {
+      "width": 3,
+      "pattern": "stone,stone/stone,stick/.,stick",
+      "kind": "axe",
+      "count": 1
+    },
+    {
+      "width": 3,
+      "pattern": "stone/stone/stick",
+      "kind": "stone_sword",
+      "count": 1
+    },
+    {
+      "width": 3,
+      "pattern": "soul_remnant,soul_remnant,soul_remnant/soul_remnant,soul_remnant,soul_remnant/soul_remnant,soul_remnant,soul_remnant",
+      "kind": "soul_block",
+      "count": 1
+    },
+    {
+      "width": 3,
+      "pattern": "wood,wood,wood/wood,.,wood/wood,wood,wood",
+      "kind": "chest",
+      "count": 1
+    },
+    {
+      "width": 3,
+      "pattern": "stone,stone/stick,./stick,.",
+      "kind": "hoe",
+      "count": 1,
+      "offset_x": 1
+    },
+    {
+      "width": 3,
+      "pattern": "grain,grain,grain",
+      "kind": "bread",
+      "count": 1
+    }
   ],
-  "actors": {"hen": {"active_distance": 64},"berry_bush": {"active_distance": 72},"zombie": {"active_distance": 96}, "pickup": {"active_distance": 32}, "torch": {"active_distance": 24}, "monster": {"active_distance": 48, "reserved": true}}
+  "actors": {
+    "fence": {
+      "active_distance": 96
+    },
+    "door": {
+      "active_distance": 96
+    },
+    "hen": {
+      "active_distance": 64
+    },
+    "berry_bush": {
+      "active_distance": 72
+    },
+    "zombie": {
+      "active_distance": 96
+    },
+    "pickup": {
+      "active_distance": 32
+    },
+    "torch": {
+      "active_distance": 24
+    },
+    "monster": {
+      "active_distance": 48,
+      "reserved": true
+    },
+    "crop": {
+      "active_distance": 64
+    }
+  }
 }

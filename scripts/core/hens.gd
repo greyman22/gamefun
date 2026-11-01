@@ -6,7 +6,7 @@ const LOVE_TIME: float = 60
 const RADIUS: float = 15
 
 static func interval(mode: String) -> float:
-	return 60.0 if mode == "debug" else randf_range(180, 300)
+	return 120.0 if mode == "debug" else randf_range(180, 300)
 
 static func adult(record: Dictionary, now: float) -> bool:
 	return now >= float(record.get("adult_at", 0))

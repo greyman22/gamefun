@@ -209,12 +209,12 @@ func check_world_and_ui() -> void:
 	world.entity_system.tick(Vector3(6.5, 0, 6.5), 1)
 	for frame in range(120):
 		world.entity_system.simulate_drops(1.0 / 60.0)
-	expect(absf(world.model.entities[id].position.y - 0.125) < 0.001, "Drop must settle on solid terrain")
+	expect(absf(world.model.entities[id].position.y - world.entity_system.drop_radius(world.model.entities[id])) < 0.001, "Drop must settle on solid terrain")
 	for y in [-1, -2, -3]:
 		world.model.set_block(Vector3i(6, y, 6), "air")
 	for frame in range(120):
 		world.entity_system.simulate_drops(1.0 / 60.0)
-	expect(absf(world.model.entities[id].position.y + 2.875) < 0.001, "Drop must fall into newly excavated holes")
+	expect(absf(world.model.entities[id].position.y - (-3.0 + world.entity_system.drop_radius(world.model.entities[id]))) < 0.001, "Drop must fall into newly excavated holes")
 	var imported := Data.new()
 	expect(imported.import_state(world.model.export_state()) and imported.entities[id].position == world.model.entities[id].position, "Drop position and velocity must survive save data")
 	var outside_bag := Inventory.new()
@@ -302,7 +302,7 @@ func check_world_and_ui() -> void:
 				world.stack_cursor.touch(index)
 			world.stack_cursor.finish()
 			world.refresh_slots()
-		expect(world.template_buttons.size() == 9, "Recipe strip must show nine unique products")
+		expect(world.template_buttons.size() == 14, "Recipe strip must include all fourteen unique products")
 		for entry: Dictionary in world.template_buttons:
 			expect(entry.button.disabled == not world.stack_cursor.can_fill(entry.recipe), "Missing materials or insufficient grid must dim recipe")
 		if "--capture-ui" in OS.get_cmdline_user_args():
@@ -383,6 +383,8 @@ func check_world_and_ui() -> void:
 	world.inventory.slots[34] = {"kind": "axe", "count": 1}
 	for selected in [7, 6]:
 		world.select_hotbar(selected)
+		world.reset_held_pose()
+		var rest_pose: Transform3D = world.held_item.transform
 		var low: float = 100
 		var high: float = -100
 		for frame in range(60):
@@ -397,7 +399,7 @@ func check_world_and_ui() -> void:
 			root.get_texture().get_image().save_png("res://mining-arm-preview.png")
 		for frame in range(120):
 			world.update_hand_animation(1.0 / 60.0, false)
-		expect(world.held_item.position.distance_to(world.HELD_ORIGIN) < 0.001 and world.held_item.rotation.distance_to(world.HELD_ROTATION) < 0.001, "Releasing mining must return smoothly to rest")
+		expect(world.held_item.transform.is_equal_approx(rest_pose), "Releasing mining must return smoothly to rest")
 	world.streamer.shutdown()
 	world.queue_free()
 	await process_frame

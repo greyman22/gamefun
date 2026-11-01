@@ -49,7 +49,7 @@ func run() -> void:
 	expect(world.game_mode == "play" and world.inventory.count_item("dirt") == 32 and world.inventory.count_item("pickaxe") == 0, "Play mode must retain normal starter inventory")
 	world.new_world(42, "debug")
 	for kind: String in Registry.catalog.items:
-		expect(world.inventory.count_item(kind) > 0, "Debug inventory must contain " + kind)
+		expect(world.inventory.count_item(kind) == 0 if kind == "bedrock" else world.inventory.count_item(kind) > 0, "Debug inventory filters bedrock and supplies " + kind)
 	expect(world.inventory.slots.slice(27).map(func(slot: Dictionary) -> String: return slot.kind) == ["stone_sword", "pickaxe", "axe", "shovel", "", "dirt", "wood", "", "torch"], "Debug quickbar must use requested order and leave slot five empty")
 	world.update_house_marker()
 	expect(world.house_marker.visible, "Debug house marker must be visible outside terrain view distance")

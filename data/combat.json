@@ -4,8 +4,8 @@
   "actors": {
     "hen": {"name": "H\u00f6na", "health": 24, "defense": 10, "rare_defense": 90, "rare_defense_percent": 10, "attack": 0, "interval": 1, "reach": 0.1},
     "chick": {"name": "Kyckling", "health": 6, "defense": 0, "attack": 0, "interval": 1, "reach": 0.1},
-    "player": {"name": "Spelare", "defense": 40, "attack": 10, "interval": 0.5, "reach": 1.8},
-    "zombie": {"name": "Zombie", "aggro_start": 10, "aggro_break": 20, "defense": 30, "attack": 6, "interval": 1, "reach": 1.65}
+    "player": {"name": "Spelare", "defense": 40, "attack": 10, "interval": 0.5, "reach": 2.2},
+    "zombie": {"name": "Zombie", "aggro_start": 10, "aggro_break": 20, "defense": 30, "attack": 6, "interval": 1, "reach": 2.6}
   },
   "weapons": {
     "axe": {"name": "Yxa", "attack_bonus": 25, "interval": 1, "reach": 2.2, "sweep_degrees": 0},

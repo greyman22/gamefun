@@ -17,6 +17,13 @@ var cursor_durability: ProgressBar
 var result_press_position := Vector2.ZERO
 var result_drag_moved: bool = false
 var template_buttons: Array[Dictionary] = []
+var recipe_search: LineEdit
+var recipe_scroll: ScrollContainer
+var recipe_empty: Label
+const ARM_ANCHOR_LOCAL := Vector3(0,-0.305,0.025)
+const ARM_ANCHOR_SCREEN := Vector2(1.02,1.08)
+const ARM_ANCHOR_DEPTH := 0.24
+const HELD_SCALE := 1.2
 const HELD_ORIGIN := Vector3(0.32, -0.24, -0.65)
 const HELD_ROTATION := Vector3(-18, 20, 8) * PI / 180.0
 var swing_phase: float = 0
@@ -38,6 +45,9 @@ var item_icons: Dictionary = {}
 var item_materials: Dictionary = {}
 var selected_hotbar: int = 0
 var move_source: int = -1
+var held_arm_upper: Node3D
+var held_arm_fore: Node3D
+var arm_shoulder_position := Vector3.ZERO
 var held_item: Node3D
 var held_kind: String = "uninitialized"
 var active_tool: String = "hand"
@@ -94,13 +104,14 @@ func build_outline() -> void:
 	preview = Node3D.new()
 	var material := StandardMaterial3D.new()
 	material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	material.albedo_color = Color(1.0, 0.9, 0.35)
+	material.albedo_color = Color(0.76,0.73,0.45,0.42)
+	material.transparency=BaseMaterial3D.TRANSPARENCY_ALPHA
 	# A square outline in the local XY plane marks only the selected face.
 	for axis in range(2):
 		for side in [-0.5, 0.5]:
 			var center := Vector3.ZERO
 			center[1 - axis] = side
-			var size := Vector3.ONE * 0.012
+			var size := Vector3.ONE * 0.006
 			size[axis] = 1.0
 			var edge := box(preview, center, size, material)
 			(edge.get_child(0) as MeshInstance3D).cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
@@ -113,7 +124,7 @@ func build_outline() -> void:
 				var center := Vector3.ZERO
 				center[(axis + 1) % 3] = first
 				center[(axis + 2) % 3] = second
-				var dimensions := Vector3.ONE * 0.012
+				var dimensions := Vector3.ONE * 0.006
 				dimensions[axis] = 1
 				var edge := box(bush_focus, center, dimensions, material)
 				(edge.get_child(0) as MeshInstance3D).cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
@@ -323,7 +334,24 @@ func build_recipe_list(parent: Control) -> void:
 	side.custom_minimum_size.x = 168
 	side.add_theme_constant_override("separation", 4)
 	parent.add_child(side)
-	side.add_child(label("RECEPT", 20))
+	side.add_child(label("RECEPT",20))
+	recipe_search=LineEdit.new()
+	recipe_search.placeholder_text="S\u00f6k recept..."
+	recipe_search.clear_button_enabled=true
+	recipe_search.add_theme_font_size_override("font_size",16)
+	recipe_search.text_changed.connect(filter_recipes)
+	side.add_child(recipe_search)
+	recipe_scroll=ScrollContainer.new()
+	recipe_scroll.custom_minimum_size=Vector2(184,300)
+	recipe_scroll.size_flags_vertical=Control.SIZE_EXPAND_FILL
+	recipe_scroll.horizontal_scroll_mode=ScrollContainer.SCROLL_MODE_DISABLED
+	recipe_scroll.vertical_scroll_mode=ScrollContainer.SCROLL_MODE_AUTO
+	side.add_child(recipe_scroll)
+	var list := VBoxContainer.new()
+	list.size_flags_horizontal=Control.SIZE_EXPAND_FILL
+	list.add_theme_constant_override("separation",4)
+	recipe_scroll.add_child(list)
+
 	var seen: Dictionary = {}
 	for recipe: Dictionary in Registry.catalog.recipes:
 		if seen.has(recipe.kind):
@@ -352,10 +380,24 @@ func build_recipe_list(parent: Control) -> void:
 		row.add_child(text)
 		button.tooltip_text = "Klicka för att lägga ingredienserna i arbetsytan"
 		button.pressed.connect(func() -> void: fill_recipe_template(recipe))
-		side.add_child(button)
+		list.add_child(button)
 		template_buttons.append({"button": button, "recipe": recipe})
+	recipe_empty=label("Inga recept hittades",14)
+	list.add_child(recipe_empty)
+	recipe_empty.hide()
 	var hint := label("Dimmad = resurser saknas\neller kräver arbetsbänk", 13)
 	side.add_child(hint)
+
+func filter_recipes(query: String) -> void:
+	var term: String = query.strip_edges().to_lower()
+	var count: int = 0
+	for entry: Dictionary in template_buttons:
+		var matches: bool = term.is_empty() or Registry.label(entry.recipe.kind).to_lower().contains(term)
+		entry.button.visible=matches
+		if matches:
+			count+=1
+	recipe_empty.visible=count==0
+	recipe_scroll.scroll_vertical=0
 
 func fill_recipe_template(recipe: Dictionary) -> void:
 	stack_cursor.bind(inventory, crafting)
@@ -545,15 +587,28 @@ func update_held_item() -> void:
 		if is_instance_valid(held_item):
 			held_item.free()
 		held_item = Node3D.new()
+		held_item.scale = Vector3.ONE*HELD_SCALE
 		player.camera.add_child(held_item)
-		held_item.position = HELD_ORIGIN
-		held_item.rotation = HELD_ROTATION
+		held_arm_upper = null
+		held_arm_fore = null
 		swing_phase = 0
 		swing_blend = 0
-		if kind == "raw_chicken":
+		if kind == "gate":
+			ItemVisuals.gate_model(held_item,0.15)
+		elif kind == "fence":
+			ItemVisuals.fence_model(held_item,0.15)
+		elif kind == "foliage":
+			ItemVisuals.branch_model(held_item)
+		elif kind == "planks":
+			ItemVisuals.plank_model(held_item)
+		elif kind == "door":
+			ItemVisuals.door_model(held_item,0.13)
+		elif kind == "raw_chicken":
 			ItemVisuals.raw_chicken_model(held_item)
 		elif kind == "egg":
 			ItemVisuals.egg_model(held_item)
+		elif kind in ["grass_seed","grain","bread"]:
+			ItemVisuals.farm_item_model(held_item,kind)
 		elif kind == "blueberry":
 			ItemVisuals.blueberry_model(held_item)
 		elif kind == "soul_remnant":
@@ -567,6 +622,10 @@ func update_held_item() -> void:
 		elif kind != "":
 			var material: Material = item_materials.get(kind, block_dirt)
 			box(held_item, Vector3.ZERO, Vector3.ONE * 0.2, material)
+			if kind == "wood":
+				ItemVisuals.log_details(held_item,0.2)
+			elif kind == "soul_block":
+				ItemVisuals.soul_block_details(held_item,0.2)
 			if kind == "workbench":
 				ItemVisuals.workbench_details(held_item, 0.2)
 			if kind == "dirt":
@@ -587,7 +646,8 @@ func update_held_item() -> void:
 		var arm_skin := StandardMaterial3D.new()
 		arm_skin.albedo_color = Color(0.83, 0.6, 0.42)
 		arm_skin.roughness = 0.9
-		box(held_item, Vector3(0, -0.2, 0.025), Vector3(0.075, 0.21, 0.07), arm_skin)
+		held_arm_upper = box(held_item,Vector3.ZERO,Vector3(0.075,1,0.07),arm_skin)
+		held_arm_fore = box(held_item,Vector3.ZERO,Vector3(0.065,1,0.06),arm_skin)
 		if kind != "":
 			box(held_item, Vector3(0, -0.085, 0.015), Vector3(0.085, 0.075, 0.075), arm_skin)
 		for part in held_item.find_children("*", "MeshInstance3D", true, false):
@@ -599,23 +659,63 @@ func update_held_item() -> void:
 			held_material.render_priority = 127
 			(part as MeshInstance3D).material_override = held_material
 		held_kind = kind
+		reset_held_pose()
 	if is_instance_valid(held_item):
 		held_item.visible = not player.inventory_open
+
+# All tools and the forearm share one camera-space diagonal swing.
+# Tip offsets describe model geometry only; animation has no tool/target branches.
+func held_tip_local() -> Vector3:
+	return ItemVisuals.TOOL_TIPS.get(selected_kind(),Vector3(0,0.09,0))
+
+func camera_point(screen: Vector2, depth: float) -> Vector3:
+	var size: Vector2 = player.camera.get_viewport().get_visible_rect().size
+	return player.camera.to_local(player.camera.project_position(size*screen,depth))
+
+func pose_arm_segment(segment: Node3D, start: Vector3, finish: Vector3) -> void:
+	if not is_instance_valid(segment):
+		return
+	# The tool has its own wrist rotation. Arm bones are independently posed
+	# in camera space, then converted to the tool parent's local space.
+	var direction: Vector3 = finish-start
+	var camera_pose := Transform3D(Basis(Quaternion(Vector3.UP,direction.normalized())).scaled(Vector3(1,direction.length(),1)),(start+finish)*0.5)
+	segment.transform = held_item.transform.affine_inverse()*camera_pose
+
+func apply_tool_action(progress: float, blend: float = 1.0) -> void:
+	var sweep: float = clampf((progress-0.08)/0.84,0,1)
+	var extension: float = (1.0-cos(sweep*TAU))*0.5*blend
+	var grip_local := Vector3(0,-0.075,0)
+	var rest_rotation := Quaternion.from_euler(Vector3(-0.1,0.1,-0.3))
+	var impact_rotation := Quaternion.from_euler(Vector3(-1.0,0.5,0.3))
+	var rest_grip: Vector3 = camera_point(Vector2(0.91,1.30),0.36)
+	var impact_tip := Vector3(0,0,-1.0)
+	var impact_grip: Vector3 = impact_tip-Basis(impact_rotation)*(held_tip_local()-grip_local)*HELD_SCALE
+	held_item.quaternion = rest_rotation.slerp(impact_rotation,extension)
+	var wrist: Vector3 = rest_grip.lerp(impact_grip,extension)
+	held_item.position = wrist-held_item.basis*grip_local
+	arm_shoulder_position = camera_point(ARM_ANCHOR_SCREEN,ARM_ANCHOR_DEPTH)
+	var rest_elbow: Vector3 = camera_point(Vector2(1.12,1.5),0.3)
+	var extended_elbow: Vector3 = arm_shoulder_position.lerp(wrist,0.5)+Vector3(0.04,-0.025,0.02)
+	var elbow: Vector3 = rest_elbow.lerp(extended_elbow,extension)
+	pose_arm_segment(held_arm_upper,arm_shoulder_position,elbow)
+	pose_arm_segment(held_arm_fore,elbow,wrist)
+	if is_instance_valid(held_arm_upper):
+		held_arm_upper.visible = extension>0.02
+		held_arm_fore.visible = extension>0.02
+
+func reset_held_pose() -> void:
+	apply_tool_action(0)
 
 func update_hand_animation(delta: float, working: bool) -> void:
 	if not is_instance_valid(held_item):
 		return
-	swing_blend = move_toward(swing_blend, 1.0 if working else 0.0, delta * 7.0)
-	if working or swing_blend > 0:
-		swing_phase += delta * 11.0
+	swing_blend = move_toward(swing_blend,1.0 if working else 0.0,delta*7.0)
+	if working or swing_blend>0:
+		swing_phase += delta*11.0
+		apply_tool_action(fmod(swing_phase/TAU,1.0),swing_blend)
 	else:
 		swing_phase = 0
-	var stroke: float = sin(swing_phase)
-	var motion := Vector3(-0.012 * (1 - cos(swing_phase)), stroke * 0.045, -0.02 * (1 - cos(swing_phase))) * swing_blend
-	var rotation_offset := Vector3(stroke * 0.23, 0, cos(swing_phase) * 0.07) * swing_blend
-	var weight: float = 1.0 - exp(-18.0 * delta)
-	held_item.position = held_item.position.lerp(HELD_ORIGIN + motion, weight)
-	held_item.rotation = held_item.rotation.lerp(HELD_ROTATION + rotation_offset, weight)
+		reset_held_pose()
 
 func toggle_inventory(workbench: bool = false) -> void:
 	stack_cursor.bind(inventory, crafting)

@@ -211,7 +211,10 @@ func fill_template(recipe: Dictionary) -> bool:
 				ingredient = bag.take_stack(kind)
 			if ingredient.is_empty():
 				return false
-			output[y * crafting.width + x] = ingredient
+			var target_x: int = x+int(recipe.get("offset_x",0))
+			if target_x<0 or target_x>=crafting.width:
+				return false
+			output[y * crafting.width + target_x] = ingredient
 	for entry in pool:
 		if entry.count > 0 and not bag.add_stack(entry):
 			return false

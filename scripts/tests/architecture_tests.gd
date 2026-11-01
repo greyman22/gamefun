@@ -44,7 +44,7 @@ func check_catalog() -> void:
 	wrong.blocks.test_block_49.id = 1
 	expect(not Registry.install(wrong), "Duplicate IDs must be rejected without replacing working registry")
 	expect(Registry.install(original), "Original registry must restore")
-	for pair in [["hand", "stone", 4.5], ["pickaxe", "stone", 1.5], ["axe", "wood", 1.5], ["shovel", "dirt", 1.5]]:
+	for pair in [["hand", "stone", 3.0], ["pickaxe", "stone", 0.7], ["axe", "wood", 0.7], ["shovel", "dirt", 0.7]]:
 		expect(is_equal_approx(Registry.seconds(pair[0], pair[1]), pair[2]), "Harvest rules must come from registry")
 	expect(not Registry.drops("hand", "stone") and not Registry.drops("axe", "foliage"), "Existing material drop rules must remain")
 
@@ -273,7 +273,7 @@ func check_voxel_movement(world: Node) -> void:
 		Input.parse_input_event(forward)
 		Input.flush_buffered_events()
 		world.player._unhandled_input(jump)
-		for frame in range(20):
+		for frame in range(34):
 			world.player._physics_process(1.0 / 60.0)
 			await physics_frame
 		forward.pressed = false

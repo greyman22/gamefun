@@ -1,6 +1,7 @@
 extends RefCounted
 
 signal block_changed(cell: Vector3i)
+signal foliage_fell(cell: Vector3i, kind: String)
 const Chests = preload("res://scripts/core/chests.gd")
 const Registry = preload("res://scripts/core/registry.gd")
 const Generator = preload("res://scripts/core/generator.gd")
@@ -130,6 +131,7 @@ func advance(delta: float) -> void:
 			decay.erase(cell)
 		elif record.deadline <= game_time:
 			set_block(cell, "air")
+			foliage_fell.emit(cell,"stick" if randf() < 0.25 else "foliage")
 			decay.erase(cell)
 
 func export_state() -> Dictionary:

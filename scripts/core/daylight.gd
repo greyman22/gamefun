@@ -2,7 +2,7 @@ extends RefCounted
 
 const Registry = preload("res://scripts/core/registry.gd")
 const Generator = preload("res://scripts/core/generator.gd")
-const REACH: int = 12
+const REACH: int = 8
 const NEIGHBOURS = [Vector3i.UP, Vector3i.LEFT, Vector3i.RIGHT, Vector3i.FORWARD, Vector3i.BACK, Vector3i.DOWN]
 var model: RefCounted
 var columns: Dictionary = {}
@@ -62,7 +62,7 @@ func exposure(position: Vector3) -> float:
 		cursor += 1
 		var distance: int = distances[cell]
 		if cell.y > roof(cell.x, cell.z):
-			return pow(1.0 - float(distance) / REACH, 2)
+			return pow(1.0 - float(distance) / REACH, 3)
 		if distance >= REACH - 1:
 			continue
 		for direction: Vector3i in NEIGHBOURS:

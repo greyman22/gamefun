@@ -14,10 +14,14 @@ var navigation = Navigation.new()
 var visual: Node3D
 var hearts: Array[Label3D] = []
 var legs: Array[Node3D] = []
+var wings: Array[Node3D] = []
+var gliding: bool = false
+var glide_duration: float = 1
 var chick: bool = false
 var wait: float = 0
 var route: Array[Vector3] = []
 var resting: bool = false
+var pursuit_allowed: bool = true
 var following_soul: bool = false
 var phase: float = 0
 var step_from := Vector3.ZERO
@@ -28,10 +32,13 @@ func configure(data: RefCounted, value: Dictionary) -> void:
 	model = data
 	record = value
 	navigation.model = data
+	navigation.max_drop = 8
 	var state: Dictionary = record.get("state", {})
 	step_from = state.get("step_from", record.position)
 	step_to = state.get("step_to", record.position)
 	step_time = float(state.get("step_time", 1))
+	gliding = bool(state.get("gliding",false))
+	glide_duration = float(state.get("glide_duration",1))
 	phase = float(state.get("phase", 0))
 	health = float(state.get("health", Combat.stats("hen" if Hens.adult(record, model.game_time) else "chick").health))
 	chick = bool(state.get("was_chick", not Hens.adult(record, model.game_time)))
@@ -62,10 +69,10 @@ func _ready() -> void:
 		hearts.append(heart)
 	build()
 
-func part(point: Vector3, dimensions: Vector3, color: Color) -> void:
+func part(point: Vector3, dimensions: Vector3, color: Color) -> MeshInstance3D:
 	var material := StandardMaterial3D.new()
 	material.albedo_color = color
-	Visuals.tool_part(visual, point, dimensions, material)
+	return Visuals.tool_part(visual, point, dimensions, material)
 
 func build() -> void:
 	if is_instance_valid(visual):
@@ -75,6 +82,7 @@ func build() -> void:
 		health = float(Combat.stats("hen").health)
 	chick = not Hens.adult(record, model.game_time)
 	legs.clear()
+	wings.clear()
 	visual = Node3D.new()
 	add_child(visual)
 	visual.scale = Vector3.ONE * (0.52 if chick else 1.0)
@@ -87,7 +95,7 @@ func build() -> void:
 	part(Vector3(0, 0.55, -0.3), Vector3(0.09, 0.14, 0.08), Color("d43834"))
 	for side in [-1, 1]:
 		part(Vector3(side * 0.15, 0.75, -0.28), Vector3(0.025, 0.045, 0.045), Color("171c21"))
-		part(Vector3(side * 0.25, 0.42, 0.02), Vector3(0.09, 0.27, 0.34), feathers.darkened(0.12))
+		wings.append(part(Vector3(side * 0.25, 0.42, 0.02), Vector3(0.09, 0.27, 0.34), feathers.darkened(0.12)))
 		var leg := Node3D.new()
 		leg.position = Vector3(side * 0.12, 0.2, 0.01)
 		visual.add_child(leg)
@@ -114,7 +122,7 @@ func simulate(delta: float, soul_lure: Variant = null) -> void:
 					position = next
 					step_from += shift
 					step_to += shift
-	var attracted: bool = soul_lure is Vector3 and position.distance_to(soul_lure) <= 7.0
+	var attracted: bool = pursuit_allowed and soul_lure is Vector3 and position.distance_to(soul_lure) <= 10.0
 	if attracted != following_soul:
 		route.clear()
 		wait = 0
@@ -127,15 +135,24 @@ func simulate(delta: float, soul_lure: Variant = null) -> void:
 		hearts[index].visible = remaining > 0
 		hearts[index].position = Vector3(cos(index * TAU / 4) * 0.4, 0.9 + (1.5 - remaining) * 0.5, sin(index * TAU / 4) * 0.4)
 	if step_time < 1:
-		step_time = minf(1, step_time + delta * 1.3)
+		step_time = minf(1,step_time+delta/glide_duration if gliding else step_time+delta*1.3)
 		position = step_from.lerp(step_to, step_time)
 		var level_change: float = absf(step_to.y - step_from.y)
-		if level_change > 0.1:
+		if gliding:
+			# First clear the roof edge at its original height, then flutter down.
+			position = step_from.lerp(step_to,minf(1,step_time/0.25))
+			position.y = lerpf(step_from.y,step_to.y,smoothstep(0.25,1.0,step_time))
+			for i in range(wings.size()):
+				wings[i].rotation.z = (-1 if i==0 else 1)*(0.85+sin(phase*20)*0.45)
+		elif level_change > 0.1:
 			position.y += sin(step_time * PI) * (0.2 + level_change * 0.5)
 		for index in range(legs.size()):
-			legs[index].rotation.x = sin(phase * 12 + index * PI) * 0.45
-		visual.rotation.z = sin(phase * 12) * 0.07
+			legs[index].rotation.x = -0.45 if gliding else sin(phase * 12 + index * PI) * 0.45
+		visual.rotation.z = 0.0 if gliding else sin(phase * 12) * 0.07
 		return
+	gliding=false
+	for wing in wings:
+		wing.rotation.z=0
 	visual.rotation.z = 0
 	for leg in legs:
 		leg.rotation.x = 0
@@ -155,7 +172,7 @@ func simulate(delta: float, soul_lure: Variant = null) -> void:
 	elif attracted:
 		target = soul_lure
 		route.clear()
-		if Vector2(position.x - target.x, position.z - target.z).length() <= 1.1:
+		if Vector2(position.x - target.x, position.z - target.z).length() <= 1.1 and absf(position.y-target.y)<=1.0:
 			return
 	elif route.is_empty():
 		var angle := randf() * TAU
@@ -173,12 +190,14 @@ func simulate(delta: float, soul_lure: Variant = null) -> void:
 	step_from = position
 	step_to = next
 	step_time = 0
+	gliding = step_from.y-step_to.y>1.05
+	glide_duration = 0.5+maxf(0,step_from.y-step_to.y)/1.8
 	look_at(Vector3(next.x, position.y, next.z))
 	if route.is_empty() and partner.is_empty() and not attracted:
 		wait = randf_range(1, 3)
 
 func serialize_state() -> Dictionary:
-	return {"step_from":step_from, "step_to":step_to, "step_time":step_time, "phase":phase, "health":health, "was_chick":chick, "knockback":knockback.snapshot()}
+	return {"step_from":step_from, "step_to":step_to, "step_time":step_time, "phase":phase, "gliding":gliding,"glide_duration":glide_duration, "health":health, "was_chick":chick, "knockback":knockback.snapshot()}
 
 func receive_hit(amount: float) -> void:
 	health = maxf(0, health - amount)

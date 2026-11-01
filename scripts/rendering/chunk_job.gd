@@ -70,9 +70,9 @@ func run() -> void:
 						cell[v_axis] = v
 						var slot: int = cell.x + 1 + 18 * (cell.y + 1 + 18 * (cell.z + 1))
 						var value: int = padded[slot]
-						if Registry.cube(value) and value != Registry.id("chest") and (not Registry.cube(padded[slot + direction * [1, 18, 324][axis]]) or padded[slot + direction * [1, 18, 324][axis]] == Registry.id("chest")):
+						if Registry.cube(value) and value not in [Registry.id("chest"),11,12,13,14,15,16,17] and (not Registry.cube(padded[slot + direction * [1, 18, 324][axis]]) or padded[slot + direction * [1, 18, 324][axis]] in [Registry.id("chest"),4,11,12,13,14,15,16,17]):
 							# Keep buried dirt separate in greedy masks without adding block IDs.
-							var covered: bool = value == Registry.id("dirt") and padded[slot + 18] != 0
+							var covered: bool = value == Registry.id("dirt") and Registry.catalog.blocks.get(Registry.kind(padded[slot+18]),{}).get("shape","cube") == "cube" and padded[slot+18] != 0
 							mask[u + v * SIZE] = value + (65536 if covered else 0)
 				for v in range(SIZE):
 					var u: int = 0

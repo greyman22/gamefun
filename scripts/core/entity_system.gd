@@ -2,6 +2,15 @@ extends Node3D
 
 signal zombie_died(position: Vector3)
 
+const Farming = preload("res://scripts/core/farming.gd")
+const Crop = preload("res://scripts/crop.gd")
+const GrassField = preload("res://scripts/rendering/grass_field.gd")
+var grass_field: Node3D
+const Access = preload("res://scripts/core/pursuit_access.gd")
+var pursuit_access = Access.new()
+const Fence = preload("res://scripts/fence.gd")
+const Doors = preload("res://scripts/core/doors.gd")
+const Door = preload("res://scripts/door.gd")
 const ActorSpace = preload("res://scripts/core/actor_space.gd")
 const Hens = preload("res://scripts/core/hens.gd")
 const Hen = preload("res://scripts/hen.gd")
@@ -28,6 +37,16 @@ func register_actor(kind: String, scene: PackedScene) -> void:
 
 func configure(data: RefCounted, mode: String = "play") -> void:
 	model = data
+	pursuit_access.configure(data)
+	if not model.block_changed.is_connected(refresh_fences):
+		model.block_changed.connect(refresh_fences)
+	if not model.foliage_fell.is_connected(fallen_foliage):
+		model.foliage_fell.connect(fallen_foliage)
+	if not model.block_changed.is_connected(check_door_support):
+		model.block_changed.connect(check_door_support)
+	grass_field = GrassField.new()
+	grass_field.configure(data)
+	add_child(grass_field)
 	game_mode = mode
 	death_respawn_delay = Combat.respawn_seconds(mode)
 
@@ -37,6 +56,7 @@ func tick(position: Vector3, delta: float) -> void:
 		return
 	elapsed = 0
 	expire_drops()
+	grass_field.tick(position,0.3)
 	Berries.ensure_nearby(model, position)
 	Hens.ensure_nearby(model, position, game_mode)
 	var nearby: Array = []
@@ -58,7 +78,7 @@ func tick(position: Vector3, delta: float) -> void:
 		wanted[entry.id] = true
 		if not active.has(entry.id):
 			activate(entry.id, record)
-		if record.type == "berry_bush" and active.has(entry.id):
+		if record.type in ["berry_bush","crop"] and active.has(entry.id):
 			active[entry.id].refresh()
 		if record.type == "torch" and active.has(entry.id):
 			var sources: Array[Node] = active[entry.id].find_children("*", "OmniLight3D", true, false)
@@ -70,8 +90,25 @@ func tick(position: Vector3, delta: float) -> void:
 			deactivate(id)
 
 func activate(id: String, record: Dictionary) -> void:
+	if record.type == "door" and not Registry.cube(model.block(record.cell+Vector3i.DOWN)):
+		var point: Vector3 = record.position+Vector3(0,0.6,0)
+		Doors.remove(self,record.cell)
+		spawn_drop(record.get("kind","door"),point)
+		return
+	if record.type=="crop" and model.kind_at(record.cell+Vector3i.DOWN)!="farmland":
+		model.entities.erase(id)
+		return
 	var node: Node3D
 	match record.type:
+		"crop":
+			node = Crop.new()
+			node.configure(model,record)
+		"fence":
+			node = Fence.new()
+			node.configure(model,record)
+		"door":
+			node = Door.new()
+			node.configure(record)
 		"hen":
 			node = Hen.new()
 			node.configure(model, record)
@@ -94,8 +131,12 @@ func activate(id: String, record: Dictionary) -> void:
 				node.add_child(title)
 		"torch":
 			node = StaticBody3D.new()
+			node.collision_layer = 16
 			node.set_meta("build_surface", true)
 			node.set_meta("cell", record.cell)
+			var normal: Vector3 = record.get("normal",Vector3.UP)
+			record.position = Visuals.torch_anchor(record.cell,normal)
+			node.quaternion = Visuals.torch_tilt(normal)
 			Visuals.torch_model(node, 2.5)
 			var collision := CollisionShape3D.new()
 			var shape := BoxShape3D.new()
@@ -178,6 +219,15 @@ func respawn_zombies() -> void:
 		elapsed = 1
 
 func simulate_actors(delta: float, player: CharacterBody3D = null) -> void:
+	if player != null:
+		for id: String in active:
+			if not model.entities.has(id) or model.entities[id].type not in ["hen","zombie"]:
+				continue
+			var actor: Node3D = active[id]
+			var interested: bool = actor.position.distance_to(player.position)<=20.0
+			if model.entities[id].type=="hen":
+				interested = soul_lure is Vector3 and actor.position.distance_to(soul_lure)<=10
+			actor.pursuit_allowed = pursuit_access.allowed(actor.position,player.position) if interested else true
 	Hens.tick(self, delta)
 	respawn_zombies()
 	for id: String in active.keys():
@@ -203,7 +253,7 @@ func within_pickup_reach(position: Vector3, record: Dictionary) -> bool:
 	if not record.get("state", {}).get("grounded", false):
 		return false
 	# Reach the entire top of a neighbouring one-metre block, including its far corners.
-	var support := Vector3i((record.position - Vector3(0, 0.126, 0)).floor())
+	var support := Vector3i((record.position - Vector3(0, drop_radius(record)+0.001, 0)).floor())
 	if not Registry.cube(model.block(support)):
 		return false
 	var height_above_feet: float = support.y + 1.0 - position.y
@@ -254,6 +304,7 @@ func simulate_drops(delta: float) -> void:
 		var record: Dictionary = model.entities[id]
 		if record.type != "pickup" or not record.get("state", {}).get("falling", false):
 			continue
+		var radius: float = drop_radius(record)
 		var was_grounded: bool = record.state.get("grounded", false)
 		record.state.grounded = false
 		var position: Vector3 = record.position
@@ -265,17 +316,17 @@ func simulate_drops(delta: float) -> void:
 			for axis in [0, 2]:
 				var proposed: Vector3 = position
 				proposed[axis] += sideways[axis] * delta / steps
-				if drop_overlaps_block(proposed):
+				if drop_overlaps_block(proposed,radius):
 					sideways[axis] = 0
 				else:
 					position = proposed
 			var proposed_y: float = position.y + velocity * delta / steps
 			var floor_top: float = -INF
-			for x in [-0.124, 0.124]:
-				for z in [-0.124, 0.124]:
-					var cell := Vector3i(floori(position.x + x), floori(proposed_y - 0.125), floori(position.z + z))
+			for x in [-radius+0.001, radius-0.001]:
+				for z in [-radius+0.001, radius-0.001]:
+					var cell := Vector3i(floori(position.x + x), floori(proposed_y - radius), floori(position.z + z))
 					if Registry.cube(model.block(cell)):
-						floor_top = maxf(floor_top, cell.y + 1.125)
+						floor_top = maxf(floor_top, cell.y + 1.0 + radius)
 			if floor_top > -INF:
 				record.state.grounded = true
 				if not was_grounded and record.kind == "blueberry":
@@ -291,10 +342,10 @@ func simulate_drops(delta: float) -> void:
 		record.state.velocity_y = velocity
 		active[id].position = position
 
-func drop_overlaps_block(position: Vector3) -> bool:
-	for x in [-0.124, 0.124]:
-		for y in [-0.124, 0.124]:
-			for z in [-0.124, 0.124]:
+func drop_overlaps_block(position: Vector3, radius: float = 0.125) -> bool:
+	for x in [-radius+0.001, radius-0.001]:
+		for y in [-radius+0.001, radius-0.001]:
+			for z in [-radius+0.001, radius-0.001]:
 				if Registry.cube(model.block(Vector3i(floori(position.x + x), floori(position.y + y), floori(position.z + z)))):
 					return true
 	return false
@@ -309,6 +360,53 @@ func snapshot_active() -> void:
 func expire_drops() -> void:
 	for id: String in model.entities.keys():
 		var record: Dictionary = model.entities[id]
+		if record.type == "pickup" and record.get("kind","") == "egg" and not record.has("expires_at"):
+			record.expires_at = model.game_time + DROP_LIFETIME
 		if record.type == "pickup" and model.game_time >= float(record.get("expires_at", INF)):
 			model.entities.erase(id)
 			deactivate(id)
+
+func fallen_foliage(cell: Vector3i, kind: String) -> void:
+	spawn_drop(kind,Vector3(cell)+Vector3.ONE*0.5)
+
+func check_door_support(changed: Vector3i) -> void:
+	var crop_id: String = Farming.crop_at(model,changed+Vector3i.UP)
+	if not crop_id.is_empty() and model.kind_at(changed)!="farmland":
+		model.entities.erase(crop_id)
+		deactivate(crop_id)
+	var id: String = Doors.entity_id(model,changed+Vector3i.UP)
+	if not model.entities.has(id) or model.entities[id].type != "door":
+		return
+	var record: Dictionary = model.entities[id]
+	if not Registry.cube(model.block(record.cell+Vector3i.DOWN)):
+		var point: Vector3 = record.position+Vector3(0,0.6,0)
+		Doors.remove(self,record.cell)
+		spawn_drop(record.get("kind","door"),point)
+
+func creature_occupies(cell: Vector3i, blocks_high: int = 1) -> bool:
+	var volume := AABB(Vector3(cell),Vector3(1,blocks_high,1))
+	for id: String in model.entities:
+		var record: Dictionary = model.entities[id]
+		if record.type in ["pickup","torch","door","fence","berry_bush","crop"] or record.get("state",{}).get("dead",false):
+			continue
+		if not Registry.catalog.actors.has(record.type) and not factories.has(record.type):
+			continue
+		var point: Vector3 = active[id].position if active.has(id) else record.position
+		var width: float = float(Registry.catalog.actors.get(record.type,{}).get("body_radius",0.34))
+		var tall: float = float(Registry.catalog.actors.get(record.type,{}).get("body_height",1.8))
+		if record.type == "hen":
+			var grown: bool = Hens.adult(record,model.game_time)
+			width = 0.34 if grown else 0.18
+			tall = 0.92 if grown else 0.48
+		if volume.intersects(AABB(point-Vector3(width,0,width),Vector3(width*2,tall,width*2))):
+			return true
+	return false
+
+static func drop_radius(record: Dictionary) -> float:
+	return 0.15625 if record.get("kind","") in ["stick","foliage","wood","dirt","stone"] else 0.125
+
+func refresh_fences(cell: Vector3i) -> void:
+	for offset in [Vector3i.ZERO,Vector3i.LEFT,Vector3i.RIGHT,Vector3i.FORWARD,Vector3i.BACK]:
+		var id: String = "fence_"+model.text_key(cell+offset)
+		if active.has(id):
+			active[id].refresh()

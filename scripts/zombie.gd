@@ -6,6 +6,7 @@ const Vitals = preload("res://scripts/core/vitals.gd")
 var airborne: bool = false
 var fall_peak: float = 0
 const Combat = preload("res://scripts/core/combat.gd")
+var pursuit_allowed: bool = true
 var health: float = 100
 const Registry = preload("res://scripts/core/registry.gd")
 const RADIUS: float = 15.0
@@ -126,8 +127,10 @@ func floor_below(feet: Vector3, depth: float = 1.2) -> float:
 	for x in [-0.28, 0.28]:
 		for z in [-0.28, 0.28]:
 			for y in range(floori(feet.y - 0.001), floori(feet.y - depth) - 1, -1):
-				if y + 1 <= feet.y + 0.02 and Registry.cube(model.block(Vector3i(floori(feet.x + x), y, floori(feet.z + z)))):
-					highest = maxf(highest, y + 1.0)
+				var cell := Vector3i(floori(feet.x+x),y,floori(feet.z+z))
+				var top: float = y+1.0
+				if top <= feet.y+0.02 and Registry.cube(model.block(cell)):
+					highest = maxf(highest,top)
 					break
 	return highest
 
@@ -229,6 +232,8 @@ func start_hop(direction: Vector3) -> bool:
 		if floor_y == -INF:
 			return false
 		target.y = floor_y
+	if target.y>position.y+0.1 and model.kind_at(Vector3i((target-Vector3(0,0.05,0)).floor())) in ["fence","gate"]:
+		return false
 	if not clear_at(target):
 		return false
 	var peak: float = maxf(position.y, target.y) + 0.4
@@ -280,7 +285,7 @@ func sight_to(feet: Vector3) -> bool:
 	var to: Vector3 = feet + Vector3(0, 1.2, 0)
 	var steps: int = maxi(2, ceili(from.distance_to(to) / 0.25))
 	for index in range(1, steps):
-		if Registry.cube(model.block(Vector3i(from.lerp(to, float(index) / steps).floor()))):
+		if model.kind_at(Vector3i(from.lerp(to,float(index)/steps).floor())) not in ["fence","gate"] and Registry.cube(model.block(Vector3i(from.lerp(to, float(index) / steps).floor()))):
 			return false
 	return true
 
@@ -295,11 +300,15 @@ func set_behavior(next: String) -> void:
 func update_behavior(delta: float, player: CharacterBody3D) -> void:
 	if player == null:
 		return
+	if not pursuit_allowed:
+		if behavior == "chase":
+			set_behavior("return")
+		strike_time = -1
 	var distance: float = position.distance_to(player.position)
 	var settings: Dictionary = Combat.stats("zombie")
 	if behavior == "chase" and distance >= float(settings.get("aggro_break", 20)):
 		set_behavior("return")
-	elif behavior != "chase" and distance <= float(settings.get("aggro_start", 10)) and sight_to(player.position):
+	elif pursuit_allowed and behavior != "chase" and distance <= float(settings.get("aggro_start", 10)) and sight_to(player.position):
 		set_behavior("chase")
 	if behavior == "wander":
 		return
@@ -321,7 +330,7 @@ func update_behavior(delta: float, player: CharacterBody3D) -> void:
 	goal = route[0] if not route.is_empty() else destination
 
 func can_hit(player: CharacterBody3D) -> bool:
-	return player != null and absf(player.position.y - position.y) <= 1.3 and Vector2(player.position.x - position.x, player.position.z - position.z).length() <= float(Combat.stats("zombie").reach) and sight_to(player.position)
+	return pursuit_allowed and player != null and absf(player.position.y - position.y) <= 1.3 and Vector2(player.position.x - position.x, player.position.z - position.z).length() <= float(Combat.stats("zombie").reach) and sight_to(player.position)
 
 func advance_strike(delta: float, player: CharacterBody3D) -> void:
 	if strike_time < 0:

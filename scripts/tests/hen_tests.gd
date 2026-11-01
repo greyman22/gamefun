@@ -75,11 +75,11 @@ func run() -> void:
 	for id: String in ["walker_a", "walker_b"]:
 		system.deactivate(id)
 		data.entities.erase(id)
-	data.game_time = 60
+	data.game_time = 120
 	Hens.tick(system, 0)
-	expect(eggs(data).size() == 2, "Debug adults each lay an egg at one minute")
+	expect(eggs(data).size() == 2, "Debug adults each lay an egg at two minutes")
 	var drop: Dictionary = eggs(data)[0]
-	expect(drop.expires_at == 360 and drop.state.falling, "Egg drops physically and lasts five minutes")
+	expect(drop.expires_at == 420 and drop.state.falling, "Egg drops physically and lasts five minutes")
 	var bag := Bag.new()
 	var egg_id: String = ""
 	for id: String in data.entities:
@@ -87,7 +87,7 @@ func run() -> void:
 			egg_id = id
 			break
 	system.activate(egg_id, data.entities[egg_id])
-	data.game_time = 61
+	data.game_time = 121
 	system.collect(data.entities[egg_id].position, bag)
 	expect(bag.count_item("egg") == 1, "Egg can be collected into inventory")
 	var roundtrip := Data.new(0)
@@ -149,16 +149,16 @@ func run() -> void:
 	bird.position = Vector3(3.5, 35, 2.5)
 	var lure := Vector3(3.5, 35, 5.5)
 	bird.simulate(0, lure)
-	expect(bird.following_soul and bird.step_to.z > bird.position.z, "Hen within seven metres walks toward soul holder")
+	expect(bird.following_soul and bird.step_to.z > bird.position.z, "Hen within ten metres walks toward soul holder")
 	for frame in range(120):
 		bird.simulate(1.0 / 60, lure)
 	expect(bird.position.distance_to(lure) < 3.0, "Lure makes hen approach player")
-	bird.simulate(0, bird.position + Vector3(0, 0, 6.9))
-	expect(bird.following_soul, "Hen follows at extended 6.9 metre range")
-	bird.simulate(0, bird.position + Vector3(0, 0, 7.1))
-	expect(not bird.following_soul, "Hen does not follow beyond seven metres")
+	bird.simulate(0, bird.position + Vector3(0, 0, 9.9))
+	expect(bird.following_soul, "Hen follows at extended 9.9 metre range")
+	bird.simulate(0, bird.position + Vector3(0, 0, 10.1))
+	expect(not bird.following_soul, "Hen does not follow beyond ten metres")
 	bird.simulate(0, Vector3(3.5, 35, 20))
-	expect(not bird.following_soul, "Hen stops following beyond seven metres")
+	expect(not bird.following_soul, "Hen stops following beyond ten metres")
 	bird.simulate(0, lure)
 	bird.simulate(0)
 	expect(not bird.following_soul, "Hen stops following when soul is put away")

@@ -31,6 +31,8 @@ func run() -> void:
 	data.set_block(cell, "dirt")
 	var exposed := side_color(data, cell)
 	expect(tile(exposed) == Registry.tile(Registry.id("dirt"), Vector3i.RIGHT) and exposed.b == 1, "Exposed dirt keeps grass and faint block grid")
+	data.set_block(cell + Vector3i.UP, "torch")
+	expect(tile(side_color(data,cell)) == tile(exposed),"Torch keeps soil grassy")
 	data.set_block(cell + Vector3i.UP, "stone")
 	var buried := side_color(data, cell)
 	expect(tile(buried) == Registry.tile(Registry.id("dirt"), Vector3i.DOWN), "Covered dirt must have plain soil across chunk boundary")

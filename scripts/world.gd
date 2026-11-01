@@ -1,5 +1,18 @@
 extends "res://scripts/game_ui.gd"
+const Farming = preload("res://scripts/core/farming.gd")
+var target_plant: Dictionary = {}
+const INTERACTION_REACH: float = 5.0
 
+const Surfaces = preload("res://scripts/rendering/surface_textures.gd")
+const DebugHouse = preload("res://scripts/core/debug_house.gd")
+const Doors = preload("res://scripts/core/doors.gd")
+const DayCycle = preload("res://scripts/core/day_cycle.gd")
+const DayHUD = preload("res://scripts/day_hud.gd")
+var day_hud: Control
+var sun_light: DirectionalLight3D
+var moon_light: DirectionalLight3D
+var moon_disc: MeshInstance3D
+var sun_disc: MeshInstance3D
 const Hens = preload("res://scripts/core/hens.gd")
 const Chests = preload("res://scripts/core/chests.gd")
 const ChestUI = preload("res://scripts/chest_ui.gd")
@@ -56,6 +69,8 @@ var attack_animation: float = 0
 var target_bush: String = ""
 var harvest_target: String = ""
 var harvest_press: bool = false
+var planting_held: bool = false
+var planting_last_key: String = ""
 var eating_elapsed: float = 0
 var berry_planting: bool = false
 var eating_slot: int = -1
@@ -69,11 +84,11 @@ func _ready() -> void:
 		if kind == "air":
 			continue
 		var base := Color(Registry.catalog.blocks[kind].color)
-		item_materials[kind] = make_material(base, 0.12, Color(0.55, 0.55, 0.55))
+		item_materials[kind] = Surfaces.material(kind,2 if kind=="dirt" else 0)
 	for kind: String in Registry.catalog.items:
 		item_icons[kind] = ItemVisuals.icon(kind)
 	block_dirt = item_materials.dirt
-	block_grass = make_material(Color(0.36, 0.6, 0.2), 0.15, Color(0.5, 0.65, 0.4))
+	block_grass = Surfaces.material("dirt",1)
 	create_lighting()
 	player = PlayerScript.new()
 	add_child(player)
@@ -90,6 +105,12 @@ func _ready() -> void:
 	build_outline()
 	build_ui()
 	build_pause_menu()
+	var day_canvas := CanvasLayer.new()
+	day_canvas.layer = 4
+	add_child(day_canvas)
+	day_hud = DayHUD.new()
+	day_hud.world = self
+	day_canvas.add_child(day_hud)
 	var chest_canvas := CanvasLayer.new()
 	chest_canvas.layer = 2
 	add_child(chest_canvas)
@@ -178,17 +199,45 @@ func update_house_marker() -> void:
 
 func create_lighting() -> void:
 	var sun := DirectionalLight3D.new()
+	sun_light = sun
 	sun.rotation_degrees = Vector3(-55, -30, 0)
-	sun.light_energy = 0.95
+	sun.light_energy = 0.55
 	sun.shadow_enabled = true
+	sun.shadow_opacity = 0.25
 	add_child(sun)
+	sun_disc = MeshInstance3D.new()
+	var disc := SphereMesh.new()
+	disc.radius = 2.6
+	disc.height = 5.2
+	sun_disc.mesh = disc
+	sun_disc.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	var glow := StandardMaterial3D.new()
+	glow.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	glow.disable_fog = true
+	glow.albedo_color = Color(1,0.86,0.53)
+	sun_disc.material_override = glow
+	add_child(sun_disc)
+	sun_disc.hide()
+	moon_disc = MeshInstance3D.new()
+	moon_disc.mesh = disc
+	moon_disc.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	var moon_material := glow.duplicate() as StandardMaterial3D
+	moon_material.albedo_color = Color(0.75,0.81,0.92)
+	moon_disc.material_override = moon_material
+	add_child(moon_disc)
+	moon_disc.hide()
+	moon_light = DirectionalLight3D.new()
+	moon_light.light_color = Color(0.6,0.7,1)
+	moon_light.shadow_enabled = true
+	moon_light.shadow_opacity = 0.25
+	add_child(moon_light)
 	var sky := WorldEnvironment.new()
 	var environment := Environment.new()
 	environment.background_mode = Environment.BG_COLOR
 	environment.background_color = Color(0.57, 0.78, 0.93)
 	environment.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
 	environment.ambient_light_color = Color(0.86, 0.9, 1)
-	environment.ambient_light_energy = 1.1
+	environment.ambient_light_energy = 0.8
 	environment.fog_enabled = true
 	environment.fog_light_color = Color(0.57, 0.78, 0.93)
 	environment.fog_density = 0.002
@@ -258,6 +307,8 @@ func new_world(seed_value: int, mode: String = "play") -> void:
 	game_mode = "debug" if mode == "debug" else "play"
 	var data := WorldData.new(seed_value)
 	ZombieHouse.new().place(data, game_mode == "debug")
+	if game_mode == "debug":
+		DebugHouse.new().place(data)
 	if game_mode != "debug":
 		for index in range(3):
 			var kind: String = ItemVisuals.TOOL_KINDS[index]
@@ -270,7 +321,7 @@ func new_world(seed_value: int, mode: String = "play") -> void:
 			if not kind.is_empty():
 				inventory.slots[27 + index] = {"kind": kind, "count": 1 if Registry.tool(kind) else mini(64, Registry.stack_limit(kind))}
 		for kind: String in Registry.catalog.items:
-			if quickbar.has(kind):
+			if quickbar.has(kind) or kind == "bedrock":
 				continue
 			for index in inventory.pickup_order():
 				if index < 27 and inventory.slots[index].count == 0:
@@ -351,6 +402,10 @@ func restore_snapshot(saved: Dictionary) -> bool:
 		inventory.slots.assign(saved.inventory.duplicate(true))
 	crafting = CraftingScript.new(width)
 	crafting.slots.assign(saved.crafting.slots.duplicate(true))
+	if game_mode == "debug":
+		for slot: Dictionary in inventory.slots + crafting.slots + [held]:
+			if slot.kind == "bedrock":
+				Registry.clear_slot(slot)
 	held = normalize_tool_stacks(held.duplicate(), data, saved.player.position)
 	rebuild_crafting_slots()
 	selected_hotbar = clampi(int(saved.selected), 0, 8)
@@ -488,30 +543,17 @@ func _process(delta: float) -> void:
 		return
 	update_cursor_visual()
 	update_daylight(delta)
+	day_hud.refresh(delta)
 	update_house_marker()
 	streamer.tick(player.position, delta)
 	entity_system.tick(player.position, delta)
 	var predicted: Vector3 = player.position + Vector3(player.velocity.x, 0, player.velocity.z) * 0.25
 	player.movement_blocked = not streamer.ready_at(player.position) or not streamer.ready_at(predicted)
-	update_hand_animation(delta, (mining_held and mining_bar.visible or attack_animation > 0) and not player.paused and not player.inventory_open and not player.movement_blocked)
+	if attack_animation <= 0:
+		update_hand_animation(delta, mining_held and mining_bar.visible and not player.paused and not player.inventory_open and not player.movement_blocked)
 	if attack_animation > 0 and not player.paused and not player.inventory_open:
 		var progress: float = 1 - attack_animation / 0.3
-		var stroke: float = sin(progress * PI)
-		held_item.position = HELD_ORIGIN + Vector3(-0.12, 0.03, -0.12) * stroke
-		if selected_kind() == "stone_sword":
-			var arc: float
-			if progress < 0.15:
-				arc = lerpf(0, PI / 2, progress / 0.15)
-			elif progress < 0.75:
-				arc = lerpf(PI / 2, -PI / 2, (progress - 0.15) / 0.6)
-			else:
-				arc = lerpf(-PI / 2, 0, (progress - 0.75) / 0.25)
-			held_item.position.x -= 0.18 * stroke
-			held_item.rotation = HELD_ROTATION + Vector3(-0.35 * stroke, arc, -0.6 * stroke)
-		elif selected_kind() == "axe":
-			held_item.rotation = HELD_ROTATION + Vector3(-1.1, -0.2, 0.3) * stroke
-		else:
-			held_item.rotation = HELD_ROTATION + Vector3(-0.4, -0.8, 0.35) * stroke
+		apply_tool_action(progress)
 	if is_instance_valid(start_panel) and start_panel.visible:
 		player.paused = true
 	var visible_menu: bool = player.paused and not player.inventory_open and not combat_debug.visible and not (is_instance_valid(start_panel) and start_panel.visible)
@@ -527,9 +569,37 @@ func update_daylight(delta: float) -> void:
 	if light_elapsed >= 0.3:
 		light_elapsed = 0
 		daylight_target = daylight.exposure(player.camera.global_position)
+		var point: Vector3 = player.camera.global_position
+		var x := floori(point.x)
+		var z := floori(point.z)
+		var roof_kind: String = model.kind_at(Vector3i(x,daylight.roof(x,z),z))
+		if point.y >= model.generator.height(x,z) and roof_kind in ["wood","planks","foliage"]:
+			daylight_target = maxf(daylight_target,0.45)
 	daylight_amount = move_toward(daylight_amount, daylight_target, delta * 1.5)
-	sky_environment.ambient_light_energy = lerpf(0.012, 1.1, daylight_amount)
-	sky_environment.fog_light_color = Color(0.005, 0.006, 0.008).lerp(Color(0.57, 0.78, 0.93), daylight_amount)
+	var daylight_strength: float = DayCycle.daylight(model)
+	var sky_color := Color(0.045,0.065,0.13).lerp(Color(0.57,0.78,0.93),daylight_strength)
+	sky_environment.background_color = sky_color
+	sky_environment.ambient_light_energy = lerpf(0.012, lerpf(0.28, 0.8, daylight_strength), daylight_amount)
+	sky_environment.ambient_light_color = Color(0.56,0.65,0.92).lerp(Color(0.86,0.9,1),daylight_strength)
+	sky_environment.fog_light_color = Color(0.005,0.006,0.008).lerp(sky_color,daylight_amount)
+	var angle: float = (DayCycle.hour(model) - 4.0) / 18.0 * PI
+	var direction := Vector3(cos(angle),sin(angle),-0.35).normalized()
+	sun_light.look_at_from_position(player.position + direction * 100,player.position)
+	sun_light.light_energy = 0.55 * daylight_strength * daylight_amount
+	sun_light.light_color = Color(1,0.65,0.4).lerp(Color(1,0.97,0.9),daylight_strength)
+	# Keep sky bodies safely inside the current camera far plane, even at short view distance.
+	var sky_distance: float = minf(100,player.camera.far * 0.7)
+	sun_disc.position = player.camera.global_position + direction * sky_distance
+	sun_disc.scale = Vector3.ONE * sky_distance / 100.0
+	sun_disc.visible = daylight_strength > 0.001
+	var night_hour: float = fposmod(DayCycle.hour(model) - 21.0,24)
+	var moon_angle: float = night_hour / 7.0 * PI
+	var moon_direction := Vector3(cos(moon_angle),sin(moon_angle),-0.35).normalized()
+	moon_disc.position = player.camera.global_position + moon_direction * sky_distance
+	moon_disc.scale = Vector3.ONE * sky_distance / 100.0
+	moon_disc.visible = night_hour < 7
+	moon_light.look_at_from_position(player.position + moon_direction * 100,player.position)
+	moon_light.light_energy = 0.1 * (1.0 - daylight_strength) * daylight_amount if night_hour < 7 else 0.0
 	sky_environment.fog_density = lerpf(0.012, 0.002, daylight_amount)
 
 func _physics_process(delta: float) -> void:
@@ -540,12 +610,15 @@ func _physics_process(delta: float) -> void:
 	bush_focus.visible = false
 	if player.paused or player.inventory_open or player.movement_blocked:
 		mining_held = false
+		planting_held = false
+		planting_last_key = ""
 		eating_elapsed = 0
 		eating_slot = -1
 		reset_mining()
 		prompt.text = "Förbereder området…" if player.movement_blocked else ""
 		return
 	model.advance(delta)
+	DayCycle.advance(model, delta, game_mode == "debug")
 	player.vitals.tick(delta)
 	attack_cooldown = maxf(0, attack_cooldown - delta)
 	attack_animation = maxf(0, attack_animation - delta)
@@ -556,21 +629,32 @@ func _physics_process(delta: float) -> void:
 	if entity_system.collect(player.position, inventory):
 		update_counter()
 	update_build_preview()
-	if update_eating(delta):
+	if update_held_planting():
+		reset_mining()
+	elif update_eating(delta):
 		pass
+	elif mining_held and selected_kind() != "blueberry" and try_attack():
+		reset_mining()
+	elif not target_plant.is_empty():
+		update_plant_harvest(delta)
 	elif not target_bush.is_empty():
 		update_harvest(delta)
 	elif harvest_press:
-		mining_held = false
-		reset_mining()
-	elif mining_held and selected_kind() != "blueberry" and try_attack():
 		reset_mining()
 	else:
 		update_mining(delta)
 	if selected_kind() == "blueberry":
 		prompt.text = "Håll höger: ät · Höger på jord: plantera"
+	elif not target_plant.is_empty():
+		prompt.text = "H\u00e5ll v\u00e4nster: sk\u00f6rda " + ("vilt gr\u00e4s" if target_plant.wild else "s\u00e4d")
+	elif selected_kind()=="hoe":
+		prompt.text = "H\u00f6ger p\u00e5 jord: bered odlingsjord"
+	elif selected_kind()=="grass_seed":
+		prompt.text = "H\u00f6ger p\u00e5 odlingsjord: s\u00e5"
 	elif not target_bush.is_empty():
 		prompt.text = "Håll vänster: skörda blåbär"
+	elif model.kind_at(target_cell) in Doors.PARTS:
+		prompt.text = "H\u00f6ger: \u00f6ppna / st\u00e4ng " + ("grind" if model.kind_at(target_cell) in ["gate","gate_open"] else "d\u00f6rr")
 	elif model.kind_at(target_cell) == "chest":
 		prompt.text = "Höger: öppna kista"
 	elif model.kind_at(target_cell) == "workbench":
@@ -619,40 +703,50 @@ func respawn_player() -> void:
 func combat_line_clear(from: Vector3, to: Vector3) -> bool:
 	var steps: int = maxi(2, ceili(from.distance_to(to) / 0.15))
 	for index in range(1, steps):
-		if Registry.cube(model.block(Vector3i(from.lerp(to, float(index) / steps).floor()))):
+		if model.kind_at(Vector3i(from.lerp(to,float(index)/steps).floor())) not in ["fence","gate"] and Registry.cube(model.block(Vector3i(from.lerp(to, float(index) / steps).floor()))):
 			return false
 	return true
 
 func attack_targets(stats: Dictionary) -> Array[String]:
 	var targets: Array[String] = []
-	if float(stats.get("sweep_degrees", 0)) >= 180:
-		var forward: Vector3 = -player.camera.global_basis.z
-		forward.y = 0
-		forward = forward.normalized()
-		for id: String in entity_system.active:
-			if model.entities[id].type != "zombie" and not (model.entities[id].type == "hen" and selected_kind() in ["stone_sword", "axe"]):
-				continue
-			var actor: Node3D = entity_system.active[id]
-			var offset: Vector3 = actor.position - player.position
-			if absf(offset.y) > 1.8:
-				continue
-			offset.y = 0
-			if offset.length() > float(stats.reach) or forward.dot(offset) < -0.00001:
-				continue
-			if combat_line_clear(player.camera.global_position, actor.position + Vector3(0, 0.35 if model.entities[id].type == "hen" else 1.1, 0)):
-				targets.append(id)
-		return targets
+	var sweep: bool = float(stats.get("sweep_degrees",0)) >= 180
 	var from: Vector3 = player.camera.global_position
-	var to: Vector3 = from - player.camera.global_basis.z * float(stats.reach)
-	var query := PhysicsRayQueryParameters3D.create(from, to, 11, [player.get_rid()])
-	query.collide_with_areas = true
-	var hit: Dictionary = get_world_3d().direct_space_state.intersect_ray(query)
-	if not hit.is_empty() and hit.collider is Area3D:
-		var actor: Node = hit.collider.get_parent()
-		if actor.has_meta("entity_id"):
-			var id: String = actor.get_meta("entity_id")
-			if model.entities[id].type == "zombie" or (model.entities[id].type == "hen" and selected_kind() in ["stone_sword", "axe"]):
-				targets.append(id)
+	var forward: Vector3 = -player.camera.global_basis.z
+	var flat_forward := Vector3(forward.x,0,forward.z).normalized()
+	var nearest: float = INF
+	for id: String in entity_system.active:
+		var record: Dictionary = model.entities[id]
+		if record.get("state",{}).get("dead",false):
+			continue
+		if record.type != "zombie" and not (record.type == "hen" and selected_kind() in ["stone_sword","axe"]):
+			continue
+		var actor: Node3D = entity_system.active[id]
+		var zombie: bool = record.type == "zombie"
+		# Use body extent, not feet/centre alone, for forgiving melee selection.
+		var radius: float = 0.55 if zombie else 0.35
+		var height: float = 1.95 if zombie else (0.95 if Hens.adult(record,model.game_time) else 0.5)
+		var offset: Vector3 = actor.position-player.position
+		if absf(offset.y)>2.2:
+			continue
+		var flat := Vector3(offset.x,0,offset.z)
+		if flat.length()>float(stats.reach)+radius or flat_forward.dot(flat)<0:
+			continue
+		if not sweep:
+			var bounds := AABB(actor.position-Vector3(radius,0.15,radius),Vector3(radius*2,height+0.3,radius*2))
+			if bounds.intersects_segment(from,from+forward*(float(stats.reach)+radius)) == null:
+				continue
+		var visible: bool = false
+		for fraction in [0.8,0.55,0.3]:
+			if combat_line_clear(from,actor.position+Vector3(0,height*fraction,0)):
+				visible = true
+				break
+		if not visible:
+			continue
+		if sweep:
+			targets.append(id)
+		elif offset.length_squared()<nearest:
+			nearest = offset.length_squared()
+			targets.assign([id])
 	return targets
 
 func try_attack() -> bool:
@@ -706,20 +800,33 @@ func toggle_combat_debug() -> void:
 	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE if player.paused else Input.MOUSE_MODE_CAPTURED
 
 func valid_build_cell(cell: Vector3i) -> bool:
+	if model.kind_at(cell+Vector3i.DOWN)=="fence":
+		return false
+	if selected_kind()=="fence" and (model.block(cell+Vector3i.UP)!=0 or not Registry.cube(model.block(cell+Vector3i.DOWN))):
+		return false
+	if entity_system.creature_occupies(cell,2 if selected_kind() in ["door","fence"] else 1):
+		return false
 	if absi(cell.x) >= Generator.HALF_WORLD - 1 or absi(cell.z) >= Generator.HALF_WORLD - 1 or cell.y < Generator.MIN_Y or cell.y > Generator.MAX_Y:
 		return false
+	if selected_kind() in ["door","gate"]:
+		if not Doors.can_place(model,cell,selected_kind()) or not Berries.at_cell(model,cell+Vector3i.UP).is_empty():
+			return false
+		if absf(player.position.x-cell.x-0.5) < 0.85 and absf(player.position.z-cell.z-0.5) < 0.85 and player.position.y < cell.y+2 and player.position.y+1.8 > cell.y:
+			return false
 	if selected_kind() == "chest" and not Chests.can_place(model, cell):
 		return false
-	if model.block(cell) != 0 or not Berries.at_cell(model, cell).is_empty():
+	if model.block(cell) != 0 or not Berries.at_cell(model, cell).is_empty() or not Farming.crop_at(model,cell).is_empty():
 		return false
 	var center := Vector3(cell) + Vector3.ONE * 0.5
 	var feet: Vector3 = player.position
 	return not (absf(center.x - feet.x) < 0.86 and absf(center.z - feet.z) < 0.86 and center.y + 0.5 > feet.y and center.y - 0.5 < feet.y + 1.8)
 
-func torch_position(cell: Vector3i, point: Vector3, normal: Vector3) -> Vector3:
-	return point + normal * 0.07 if absf(normal.y) < 0.5 else Vector3(cell) + Vector3(0.5, 0.3, 0.5)
+func torch_position(cell: Vector3i, _point: Vector3, normal: Vector3) -> Vector3:
+	return ItemVisuals.torch_anchor(cell,normal)
 
 func valid_torch_cell(cell: Vector3i, point: Vector3, normal: Vector3) -> bool:
+	if entity_system.creature_occupies(cell):
+		return false
 	if model.block(cell) != 0 or not Berries.at_cell(model, cell).is_empty() or cell.y < Generator.MIN_Y or cell.y > Generator.MAX_Y:
 		return false
 	var center := torch_position(cell, point, normal)
@@ -729,14 +836,24 @@ func valid_torch_cell(cell: Vector3i, point: Vector3, normal: Vector3) -> bool:
 func update_build_preview() -> void:
 	bush_focus.visible = false
 	target_bush = ""
+	target_plant = {}
 	target_cell = Vector3i(0, -1000, 0)
 	can_build = false
 	preview.visible = false
 	var start: Vector3 = player.camera.global_position
-	var query := PhysicsRayQueryParameters3D.create(start, start - player.camera.global_transform.basis.z * 6, 5, [player.get_rid()])
+	var query := PhysicsRayQueryParameters3D.create(start, start - player.camera.global_transform.basis.z * INTERACTION_REACH, 21, [player.get_rid()])
 	query.collide_with_areas = true
 	query.hit_from_inside = true
 	var hit := get_world_3d().direct_space_state.intersect_ray(query)
+	var end: Vector3 = start-player.camera.global_basis.z*INTERACTION_REACH if hit.is_empty() else hit.position
+	target_plant = Farming.pick(model,start,end)
+	if not target_plant.is_empty():
+		var height: float = Farming.wild_height(model,target_plant.cell) if target_plant.wild else [0.2,0.4,0.7,1.05][Farming.stage(model.entities[target_plant.id],model.game_time)]
+		bush_focus.position = Vector3(target_plant.cell)+Vector3(0.5,height*0.5,0.5)
+		var width: float=Farming.wild_width(model,target_plant.cell) if target_plant.wild else 0.72
+		bush_focus.scale = Vector3(width,height,width)
+		bush_focus.show()
+		return
 	if not hit.is_empty() and hit.collider is Area3D and hit.collider.has_meta("berry_bush"):
 		target_bush = hit.collider.get_parent().get_meta("entity_id")
 		show_bush_focus()
@@ -781,7 +898,15 @@ func place_block() -> void:
 		return
 	if not inventory.take_from_slot(27 + selected_hotbar):
 		return
-	model.set_block(build_cell, kind)
+	if kind in ["door","gate"]:
+		var facing: Vector3 = -player.global_basis.z
+		Doors.place(model,build_cell,PI/2 if absf(facing.x) > absf(facing.z) else 0.0,kind)
+		entity_system.elapsed = 1
+	else:
+		model.set_block(build_cell, kind)
+	if kind == "fence":
+		model.entities["fence_"+model.text_key(build_cell)]={"type":"fence","kind":"fence","cell":build_cell,"position":Vector3(build_cell)+Vector3(0.5,0,0.5),"state":{}}
+		entity_system.elapsed=1
 	if kind == "chest":
 		Chests.contents(model, build_cell)
 	if kind == "torch":
@@ -798,6 +923,8 @@ func update_mining(delta: float) -> void:
 		reset_mining()
 		return
 	var kind: String = model.kind_at(target_cell)
+	if kind in Doors.PARTS:
+		kind = "gate" if kind in ["gate","gate_open"] else "door"
 	if kind == "air" or not Registry.breakable(kind):
 		reset_mining()
 		if kind == "bedrock":
@@ -820,13 +947,21 @@ func update_mining(delta: float) -> void:
 			for item: Dictionary in Chests.remove(model, mining_cell):
 				var drop: String = entity_system.spawn_drop(item.kind, Vector3(mining_cell) + Vector3.ONE * 0.5, item.count)
 				model.entities[drop].item = item
+		if kind == "fence":
+			var fence_id: String = "fence_"+model.text_key(mining_cell)
+			entity_system.deactivate(fence_id)
+			model.entities.erase(fence_id)
+		if kind in ["door","gate"]:
+			Doors.remove(entity_system,mining_cell)
 		model.set_block(mining_cell, "air")
 		var id: String = "torch_" + model.text_key(mining_cell)
 		if model.entities.has(id):
 			model.entities.erase(id)
 			entity_system.deactivate(id)
-		if gives_drop:
-			entity_system.spawn_drop(kind, Vector3(mining_cell) + Vector3.ONE * 0.5)
+		if kind == "foliage":
+			entity_system.spawn_drop("stick" if randf()<0.25 else "foliage",Vector3(mining_cell)+Vector3.ONE*0.5)
+		elif gives_drop:
+			entity_system.spawn_drop("dirt" if kind=="farmland" else kind, Vector3(mining_cell) + Vector3.ONE * 0.5)
 		wear_selected_tool()
 		reset_mining()
 		update_counter()
@@ -865,9 +1000,10 @@ func update_harvest(delta: float) -> void:
 		return
 	mining_elapsed += delta
 	mining_bar.visible = true
-	mining_bar.value = minf(100, mining_elapsed / 3.0 * 100)
-	mining_label.text = "Skördar blåbär: %.1f / 3,0 s" % minf(3, mining_elapsed)
-	if mining_elapsed >= 3:
+	var seconds: float = Berries.harvest_seconds(selected_kind())
+	mining_bar.value = minf(100, mining_elapsed / seconds * 100)
+	mining_label.text = "Skördar blåbär: %.1f / %.1f s" % [minf(seconds, mining_elapsed),seconds]
+	if mining_elapsed >= seconds:
 		var count: int = Berries.harvest(model, target_bush)
 		for index in range(count):
 			var drop: String = entity_system.spawn_drop("blueberry", record.position + Vector3(0, 0.6, 0))
@@ -877,8 +1013,78 @@ func update_harvest(delta: float) -> void:
 			entity_system.deactivate(target_bush)
 			target_bush = ""
 			harvest_target = ""
-			mining_held = false
 			bush_focus.hide()
+		reset_mining()
+
+func update_held_planting() -> bool:
+	if not planting_held:
+		return false
+	if selected_kind() not in ["hoe","grass_seed","blueberry"]:
+		planting_held=false
+		return false
+	update_build_preview()
+	var cell: Vector3i=target_plant.cell if not target_plant.is_empty() else target_cell
+	var key: String=selected_kind()+":"+model.text_key(cell)
+	if key!=planting_last_key:
+		planting_last_key=key
+		if selected_kind()=="blueberry":
+			try_plant_berry()
+		else:
+			try_farm_action()
+	return true
+
+func try_farm_action() -> bool:
+	update_build_preview()
+	var soil: Vector3i = target_cell
+	if not target_plant.is_empty():
+		if not target_plant.wild:
+			return false
+		soil = target_plant.cell+Vector3i.DOWN
+	elif target_normal.y<0.5:
+		return false
+	if selected_kind()=="hoe":
+		if Farming.till(model,soil):
+			wear_selected_tool()
+			entity_system.grass_field.invalidate(soil)
+			attack_animation=0.3
+			update_counter()
+			return true
+	elif selected_kind()=="grass_seed":
+		var id: String = Farming.plant(model,soil+Vector3i.UP,game_mode)
+		if not id.is_empty():
+			inventory.take_from_slot(27+selected_hotbar)
+			entity_system.activate(id,model.entities[id])
+			update_counter()
+			return true
+	return false
+
+func update_plant_harvest(delta: float) -> void:
+	if not mining_held:
+		reset_mining()
+		return
+	harvest_press=true
+	var key: String = "plant_"+model.text_key(target_plant.cell)
+	if harvest_target!=key:
+		reset_mining()
+		harvest_target=key
+	if not target_plant.wild and not Farming.ripe(model.entities[target_plant.id],model.game_time):
+		mining_label.text="S\u00e4den \u00e4r inte mogen \u00e4n"
+		return
+	var seconds: float = Farming.harvest_seconds(target_plant,selected_kind())
+	mining_elapsed+=delta
+	mining_bar.visible=true
+	mining_bar.value=minf(100,mining_elapsed/seconds*100)
+	mining_label.text="Sk\u00f6rdar: %.1f / %.1f s"%[mining_elapsed,seconds]
+	if mining_elapsed>=seconds:
+		var target: Dictionary = target_plant.duplicate()
+		var drops: Dictionary = Farming.harvest(model,target)
+		if not target.wild:
+			entity_system.deactivate(target.id)
+		for kind: String in drops:
+			entity_system.spawn_drop(kind,Vector3(target.cell)+Vector3(0.5,0.5,0.5),drops[kind])
+		entity_system.grass_field.invalidate(target.cell)
+		target_plant={}
+		bush_focus.hide()
 		reset_mining()
 
 func update_eating(delta: float) -> bool:
@@ -938,6 +1144,15 @@ func _input(event: InputEvent) -> void:
 		return
 	if combat_debug.visible:
 		return
+	if game_mode == "debug" and event is InputEventKey and event.pressed and not event.echo:
+		if event.physical_keycode == KEY_P:
+			day_hud.toggle_pause()
+			get_viewport().set_input_as_handled()
+			return
+		if event.physical_keycode == KEY_N:
+			day_hud.sleep()
+			get_viewport().set_input_as_handled()
+			return
 	if handle_inventory_event(event):
 		get_viewport().set_input_as_handled()
 		return
@@ -979,10 +1194,12 @@ func feed_hen() -> bool:
 func _unhandled_input(event: InputEvent) -> void:
 	if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_RIGHT and not event.pressed:
 		berry_planting = false
+		planting_held=false
+		planting_last_key=""
 	if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT:
 		if event.pressed and not player.paused and not player.inventory_open:
 			update_build_preview()
-			harvest_press = not target_bush.is_empty()
+			harvest_press = not target_bush.is_empty() or not target_plant.is_empty()
 		elif not event.pressed:
 			harvest_press = false
 		mining_held = event.pressed and not player.paused and not player.inventory_open
@@ -991,16 +1208,30 @@ func _unhandled_input(event: InputEvent) -> void:
 	if event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_RIGHT:
 		if player.paused or player.inventory_open or player.movement_blocked:
 			return
+		var from: Vector3 = player.camera.global_position
+		var door_cell: Variant = Doors.pick(entity_system,from,from-player.camera.global_basis.z*INTERACTION_REACH,[player.get_rid()])
+		if door_cell != null:
+			Doors.toggle(entity_system,door_cell,player)
+			return
+		if selected_kind() in ["hoe","grass_seed"]:
+			planting_held=true
+			planting_last_key=""
+			update_held_planting()
+			return
 		if feed_hen():
 			return
 		if selected_kind() == "blueberry":
 			update_build_preview()
 			berry_planting = target_bush.is_empty() and model.kind_at(target_cell) == "dirt" and target_normal.y > 0.5
 			if berry_planting:
-				try_plant_berry()
+				planting_held=true
+				planting_last_key=""
+				update_held_planting()
 			return
 		update_build_preview()
-		if model.kind_at(target_cell) == "chest":
+		if model.kind_at(target_cell) in Doors.PARTS:
+			Doors.toggle(entity_system,target_cell,player)
+		elif model.kind_at(target_cell) == "chest":
 			chest_ui.open(target_cell)
 		elif model.kind_at(target_cell) == "workbench":
 			toggle_inventory(true)

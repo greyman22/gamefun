@@ -69,3 +69,6 @@ static func harvest(model: RefCounted, id: String) -> int:
 		return 0
 	model.entities.erase(id)
 	return randi_range(1, 4)
+
+static func harvest_seconds(tool: String) -> float:
+	return 0.8 if tool == "axe" else 3.0
