@@ -3,6 +3,8 @@ extends Node3D
 signal zombie_died(position: Vector3)
 
 const Farming = preload("res://scripts/core/farming.gd")
+const Boat=preload("res://scripts/boat.gd")
+const Sapling=preload("res://scripts/sapling.gd")
 const Crop = preload("res://scripts/crop.gd")
 const GrassField = preload("res://scripts/rendering/grass_field.gd")
 var grass_field: Node3D
@@ -23,7 +25,7 @@ const Registry = preload("res://scripts/core/registry.gd")
 const Visuals = preload("res://scripts/item_visuals.gd")
 const Zombie = preload("res://scripts/zombie.gd")
 const Pickup = preload("res://scripts/pickup.gd")
-var soul_lure: Variant = null
+var seed_lure: Variant = null
 var model: RefCounted
 var death_respawn_delay: float = 180
 var active: Dictionary = {}
@@ -100,6 +102,12 @@ func activate(id: String, record: Dictionary) -> void:
 		return
 	var node: Node3D
 	match record.type:
+		"boat":
+			node=Boat.new()
+			node.configure(record)
+		"sapling":
+			node=Sapling.new()
+			node.configure(record)
 		"crop":
 			node = Crop.new()
 			node.configure(model,record)
@@ -226,7 +234,7 @@ func simulate_actors(delta: float, player: CharacterBody3D = null) -> void:
 			var actor: Node3D = active[id]
 			var interested: bool = actor.position.distance_to(player.position)<=20.0
 			if model.entities[id].type=="hen":
-				interested = soul_lure is Vector3 and actor.position.distance_to(soul_lure)<=10
+				interested = seed_lure is Vector3 and actor.position.distance_to(seed_lure)<=10
 			actor.pursuit_allowed = pursuit_access.allowed(actor.position,player.position) if interested else true
 	Hens.tick(self, delta)
 	respawn_zombies()
@@ -303,6 +311,10 @@ func simulate_drops(delta: float) -> void:
 			continue
 		var record: Dictionary = model.entities[id]
 		if record.type != "pickup" or not record.get("state", {}).get("falling", false):
+			continue
+		if record.state.get("floating",false) and model.water.contains(record.position-Vector3.UP*0.3):
+			record.state.grounded=true
+			active[id].position=record.position
 			continue
 		var radius: float = drop_radius(record)
 		var was_grounded: bool = record.state.get("grounded", false)
@@ -387,7 +399,7 @@ func creature_occupies(cell: Vector3i, blocks_high: int = 1) -> bool:
 	var volume := AABB(Vector3(cell),Vector3(1,blocks_high,1))
 	for id: String in model.entities:
 		var record: Dictionary = model.entities[id]
-		if record.type in ["pickup","torch","door","fence","berry_bush","crop"] or record.get("state",{}).get("dead",false):
+		if record.type in ["pickup","torch","door","fence","berry_bush","crop","sapling","boat"] or record.get("state",{}).get("dead",false):
 			continue
 		if not Registry.catalog.actors.has(record.type) and not factories.has(record.type):
 			continue

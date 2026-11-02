@@ -9,8 +9,11 @@ var elapsed: float = 1
 func configure(data: RefCounted) -> void:
 	if model!=null and model.block_changed.is_connected(changed):
 		model.block_changed.disconnect(changed)
+		if model.water_changed.is_connected(changed):
+			model.water_changed.disconnect(changed)
 	model=data
 	model.block_changed.connect(changed)
+	model.water_changed.connect(changed)
 	for patch in patches.values():
 		patch.queue_free()
 	patches.clear()

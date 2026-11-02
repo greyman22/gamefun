@@ -20,6 +20,14 @@ var template_buttons: Array[Dictionary] = []
 var recipe_search: LineEdit
 var recipe_scroll: ScrollContainer
 var recipe_empty: Label
+var recipe_grid: GridContainer
+var recipe_available: CheckBox
+var recipe_tabs: Array[Button] = []
+var recipe_category: String = "all"
+var recipe_toggle: Button
+var recipe_panel_open: bool = true
+var recipe_panel: PanelContainer
+var work_panel: PanelContainer
 const ARM_ANCHOR_LOCAL := Vector3(0,-0.305,0.025)
 const ARM_ANCHOR_SCREEN := Vector2(1.02,1.08)
 const ARM_ANCHOR_DEPTH := 0.24
@@ -201,71 +209,113 @@ func build_ui() -> void:
 	build_cursor_visual()
 	update_counter()
 
+func crafting_panel() -> PanelContainer:
+	var panel := PanelContainer.new()
+	panel.size_flags_horizontal=Control.SIZE_EXPAND_FILL
+	var style := StyleBoxFlat.new()
+	style.bg_color=Color(0.055,0.085,0.07)
+	style.border_color=Color(0.22,0.29,0.24)
+	style.set_border_width_all(1)
+	style.set_content_margin_all(12)
+	panel.add_theme_stylebox_override("panel",style)
+	return panel
+
 func build_inventory_ui(root: Control) -> void:
-	inventory_panel = PanelContainer.new()
+	inventory_panel=PanelContainer.new()
 	root.add_child(inventory_panel)
 	inventory_panel.set_anchors_and_offsets_preset(Control.PRESET_CENTER)
-	inventory_panel.offset_left = -610
-	inventory_panel.offset_right = 610
-	inventory_panel.offset_top = -315
-	inventory_panel.offset_bottom = 315
-	var style := StyleBoxFlat.new()
-	style.bg_color = Color(0.08, 0.12, 0.1, 1.0)
-	style.content_margin_left = 24
-	style.content_margin_right = 24
-	style.content_margin_top = 20
-	style.content_margin_bottom = 20
-	inventory_panel.add_theme_stylebox_override("panel", style)
-	var column := VBoxContainer.new()
-	column.add_theme_constant_override("separation", 10)
+	inventory_panel.offset_left=-610
+	inventory_panel.offset_right=610
+	inventory_panel.offset_top=-315
+	inventory_panel.offset_bottom=315
+	var style:=StyleBoxFlat.new()
+	style.bg_color=Color(0.08,0.12,0.1,1)
+	style.set_content_margin_all(18)
+	inventory_panel.add_theme_stylebox_override("panel",style)
+	var column:=VBoxContainer.new()
+	column.add_theme_constant_override("separation",10)
 	inventory_panel.add_child(column)
-	inventory_title = label("FÖREMÅL — 36 platser", 26)
-	column.add_child(inventory_title)
-	column.add_child(label("Vänster: lyft / fördela • Höger: dela stapel • Shift-klick: flytta till arbetsytan", 16))
-	var content := HBoxContainer.new()
-	content.add_theme_constant_override("separation", 16)
+	inventory_title=label("F\u00d6REM\u00c5L \u2014 36 platser",24)
+	var header:=HBoxContainer.new()
+	header.add_theme_constant_override("separation",12)
+	column.add_child(header)
+	inventory_title.size_flags_horizontal=Control.SIZE_EXPAND_FILL
+	header.add_child(inventory_title)
+	recipe_toggle=Button.new()
+	recipe_toggle.toggle_mode=true
+	recipe_toggle.button_pressed=recipe_panel_open
+	recipe_toggle.add_theme_font_size_override("font_size",15)
+	recipe_toggle.custom_minimum_size.x=130
+	recipe_toggle.toggled.connect(set_recipe_panel_visible)
+	header.add_child(recipe_toggle)
+	column.add_child(label("V\u00e4nster: lyft / f\u00f6rdela \u2022 H\u00f6ger: dela stapel \u2022 Shift-klick: flytta",14))
+	var content:=HBoxContainer.new()
+	content.size_flags_vertical=Control.SIZE_EXPAND_FILL
+	content.add_theme_constant_override("separation",16)
 	column.add_child(content)
-	var grid := GridContainer.new()
-	grid.columns = 9
-	grid.add_theme_constant_override("h_separation", 6)
-	grid.add_theme_constant_override("v_separation", 6)
-	content.add_child(grid)
+	recipe_panel=crafting_panel()
+	content.add_child(recipe_panel)
+	build_recipe_list(recipe_panel)
+	work_panel=crafting_panel()
+	content.add_child(work_panel)
+	var work:=VBoxContainer.new()
+	work.add_theme_constant_override("separation",12)
+	work_panel.add_child(work)
+	build_crafting_ui(work)
+	work.add_child(label("INVENTARIUM",16))
+	var grid:=GridContainer.new()
+	grid.columns=9
+	grid.add_theme_constant_override("h_separation",4)
+	grid.add_theme_constant_override("v_separation",4)
+	work.add_child(grid)
 	for index in range(36):
-		var panel := InventorySlot.new()
-		panel.world = self
-		panel.slot_index = index
-		panel.custom_minimum_size = Vector2(68, 68)
+		var panel:=InventorySlot.new()
+		panel.world=self
+		panel.slot_index=index
+		panel.custom_minimum_size=Vector2(52,52)
 		grid.add_child(panel)
 		inventory_slots.append(panel)
-	build_crafting_ui(content)
-	build_recipe_list(content)
-	column.add_child(label("Nedersta raden = snabbval 1–9 • Tom plats = hand • E / Esc stänger", 17))
-	inventory_panel.visible = false
+	column.add_child(label("Nedersta raden = snabbval 1\u20139 \u2022 Tom plats = hand \u2022 E / Esc st\u00e4nger",14))
+	set_recipe_panel_visible(recipe_panel_open)
+	inventory_panel.visible=false
+
+func set_recipe_panel_visible(opened: bool) -> void:
+	recipe_panel_open=opened
+	recipe_panel.visible=opened
+	recipe_toggle.set_pressed_no_signal(opened)
+	recipe_toggle.text="D\u00f6lj recept" if opened else "Visa recept"
+	var half_width: float=610 if opened else 350
+	inventory_panel.offset_left=-half_width
+	inventory_panel.offset_right=half_width
 
 func build_crafting_ui(parent: Control) -> void:
-	var side := VBoxContainer.new()
-	side.custom_minimum_size.x = 200
-	side.add_theme_constant_override("separation", 8)
-	parent.add_child(side)
-	crafting_title = label("TILLVERKA  2 × 2", 20)
-	side.add_child(crafting_title)
-	crafting_grid = GridContainer.new()
-	crafting_grid.add_theme_constant_override("h_separation", 8)
-	crafting_grid.add_theme_constant_override("v_separation", 8)
-	side.add_child(crafting_grid)
-	side.add_child(label("↓  RESULTAT (dra / shift: alla)", 16))
-	crafting_output = InventorySlot.new()
-	crafting_output.world = self
-	crafting_output.result_slot = true
-	crafting_output.custom_minimum_size = Vector2(64, 64)
-	crafting_output.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
-	side.add_child(crafting_output)
-	crafting_status = label("Lyft en stapel och håll vänster\nför att fördela över flera rutor.", 14)
-	crafting_status.custom_minimum_size.x = 200
-	crafting_status.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	side.add_child(crafting_status)
-	crafting_help = label("", 14)
-	side.add_child(crafting_help)
+	crafting_title=label("TILLVERKA  2 \u00d7 2",19)
+	parent.add_child(crafting_title)
+	var row:=HBoxContainer.new()
+	row.add_theme_constant_override("separation",18)
+	parent.add_child(row)
+	crafting_grid=GridContainer.new()
+	crafting_grid.add_theme_constant_override("h_separation",6)
+	crafting_grid.add_theme_constant_override("v_separation",6)
+	row.add_child(crafting_grid)
+	var result:=VBoxContainer.new()
+	result.size_flags_horizontal=Control.SIZE_EXPAND_FILL
+	result.add_theme_constant_override("separation",6)
+	row.add_child(result)
+	result.add_child(label("RESULTAT",15))
+	crafting_output=InventorySlot.new()
+	crafting_output.world=self
+	crafting_output.result_slot=true
+	crafting_output.custom_minimum_size=Vector2(56,56)
+	crafting_output.size_flags_horizontal=Control.SIZE_SHRINK_BEGIN
+	result.add_child(crafting_output)
+	crafting_status=label("",13)
+	crafting_status.custom_minimum_size.x=210
+	crafting_status.autowrap_mode=TextServer.AUTOWRAP_WORD_SMART
+	result.add_child(crafting_status)
+	crafting_help=label("",13)
+	crafting_help.autowrap_mode=TextServer.AUTOWRAP_WORD_SMART
+	result.add_child(crafting_help)
 	rebuild_crafting_slots()
 
 func rebuild_crafting_slots() -> void:
@@ -278,13 +328,13 @@ func rebuild_crafting_slots() -> void:
 		var slot := InventorySlot.new()
 		slot.world = self
 		slot.slot_index = 36 + index
-		slot.custom_minimum_size = Vector2(56, 56)
+		slot.custom_minimum_size = Vector2(50, 50)
 		crafting_grid.add_child(slot)
 		crafting_slots.append(slot)
 	crafting_output.slot_index = 36 + crafting.slots.size()
 	crafting_title.text = "ARBETSBÄNK  3 × 3" if crafting.width == 3 else "TILLVERKA  2 × 2"
 	inventory_title.text = "ARBETSBÄNK OCH INVENTARIUM" if crafting.width == 3 else "FÖREMÅL — 36 platser"
-	crafting_help.text = "Välj en receptmall till höger.\nDra resultatet till en ledig plats." if crafting.width == 3 else "1 stam → 4 träklossar\n2 klossar på höjden → 4 pinnar\n4 klossar i fyrkant → arbetsbänk"
+	crafting_help.text = "Shift-klick p\u00e5 resultatet: tillverka alla."
 	crafting_status.text = "Lyft en stapel och håll vänster\nför att fördela över flera rutor."
 
 func build_cursor_visual() -> void:
@@ -330,74 +380,142 @@ func build_cursor_visual() -> void:
 	hover_panel.hide()
 
 func build_recipe_list(parent: Control) -> void:
-	var side := VBoxContainer.new()
-	side.custom_minimum_size.x = 168
-	side.add_theme_constant_override("separation", 4)
-	parent.add_child(side)
-	side.add_child(label("RECEPT",20))
+	var layout:=HBoxContainer.new()
+	layout.add_theme_constant_override("separation",10)
+	parent.add_child(layout)
+	var tabs:=VBoxContainer.new()
+	tabs.custom_minimum_size.x=80
+	tabs.add_theme_constant_override("separation",8)
+	layout.add_child(tabs)
+	var spacer:=Control.new()
+	spacer.custom_minimum_size.y=68
+	tabs.add_child(spacer)
+	var group:=ButtonGroup.new()
+	var categories: Array[String]=["all","tools","materials","food","reserved"]
+	var titles: Array[String]=["Alla","Verktyg","Material","Mat","..."]
+	for i in range(categories.size()):
+		var tab:=Button.new()
+		tab.text=titles[i]
+		tab.custom_minimum_size=Vector2(80,48)
+		tab.add_theme_font_size_override("font_size",14)
+		tab.toggle_mode=true
+		tab.button_group=group
+		tab.button_pressed=i==0
+		tab.disabled=i>=4
+		tab.tooltip_text="Fler kategorier kommer senare" if i>=4 else titles[i]
+		var category: String=categories[i]
+		tab.pressed.connect(func() -> void: select_recipe_category(category))
+		tabs.add_child(tab)
+		recipe_tabs.append(tab)
+	var body:=VBoxContainer.new()
+	body.size_flags_horizontal=Control.SIZE_EXPAND_FILL
+	body.add_theme_constant_override("separation",8)
+	layout.add_child(body)
+	body.add_child(label("RECEPT",20))
+	var filters:=HBoxContainer.new()
+	filters.add_theme_constant_override("separation",8)
+	body.add_child(filters)
+	recipe_available=CheckBox.new()
+	recipe_available.text="Visa bara tillverkningsbara"
+	recipe_available.add_theme_font_size_override("font_size",14)
+	recipe_available.toggled.connect(func(_value: bool) -> void: apply_recipe_filters(true))
 	recipe_search=LineEdit.new()
 	recipe_search.placeholder_text="S\u00f6k recept..."
 	recipe_search.clear_button_enabled=true
-	recipe_search.add_theme_font_size_override("font_size",16)
+	recipe_search.add_theme_font_size_override("font_size",15)
 	recipe_search.text_changed.connect(filter_recipes)
-	side.add_child(recipe_search)
+	recipe_search.custom_minimum_size.x=160
+	recipe_search.size_flags_horizontal=Control.SIZE_EXPAND_FILL
+	filters.add_child(recipe_search)
+	filters.add_child(recipe_available)
 	recipe_scroll=ScrollContainer.new()
-	recipe_scroll.custom_minimum_size=Vector2(184,300)
+	recipe_scroll.custom_minimum_size=Vector2(424,300)
 	recipe_scroll.size_flags_vertical=Control.SIZE_EXPAND_FILL
 	recipe_scroll.horizontal_scroll_mode=ScrollContainer.SCROLL_MODE_DISABLED
 	recipe_scroll.vertical_scroll_mode=ScrollContainer.SCROLL_MODE_AUTO
-	side.add_child(recipe_scroll)
-	var list := VBoxContainer.new()
-	list.size_flags_horizontal=Control.SIZE_EXPAND_FILL
-	list.add_theme_constant_override("separation",4)
-	recipe_scroll.add_child(list)
-
-	var seen: Dictionary = {}
+	body.add_child(recipe_scroll)
+	recipe_grid=GridContainer.new()
+	recipe_grid.columns=4
+	recipe_grid.size_flags_horizontal=Control.SIZE_EXPAND_FILL
+	recipe_grid.add_theme_constant_override("h_separation",8)
+	recipe_grid.add_theme_constant_override("v_separation",8)
+	recipe_scroll.add_child(recipe_grid)
+	var seen: Dictionary={}
 	for recipe: Dictionary in Registry.catalog.recipes:
 		if seen.has(recipe.kind):
 			continue
-		seen[recipe.kind] = true
-		var button := Button.new()
-		button.custom_minimum_size = Vector2(168, 38)
-		var row := HBoxContainer.new()
-		row.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		button.add_child(row)
-		row.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-		row.offset_left = 7
-		row.offset_right = -7
-		row.offset_top = 5
-		row.offset_bottom = -5
-		var icon := TextureRect.new()
-		icon.texture = item_icons.get(recipe.kind)
-		icon.custom_minimum_size = Vector2(24, 24)
-		icon.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-		icon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
-		icon.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		row.add_child(icon)
-		var text := label("%d × %s" % [recipe.count, Registry.label(recipe.kind)], 14)
-		text.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		text.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-		row.add_child(text)
-		button.tooltip_text = "Klicka för att lägga ingredienserna i arbetsytan"
+		seen[recipe.kind]=true
+		var button:=Button.new()
+		button.custom_minimum_size=Vector2(96,80)
+		button.size_flags_horizontal=Control.SIZE_EXPAND_FILL
+		var icon:=TextureRect.new()
+		icon.texture=item_icons.get(recipe.kind)
+		icon.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+		icon.offset_left=16
+		icon.offset_right=-16
+		icon.offset_top=8
+		icon.offset_bottom=-12
+		icon.expand_mode=TextureRect.EXPAND_IGNORE_SIZE
+		icon.stretch_mode=TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+		icon.mouse_filter=Control.MOUSE_FILTER_IGNORE
+		button.add_child(icon)
+		var count:=label(str(int(recipe.count)) if int(recipe.count)>1 else "",16)
+		count.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+		count.offset_right=-6
+		count.offset_bottom=-3
+		count.horizontal_alignment=HORIZONTAL_ALIGNMENT_RIGHT
+		count.vertical_alignment=VERTICAL_ALIGNMENT_BOTTOM
+		count.mouse_filter=Control.MOUSE_FILTER_IGNORE
+		button.add_child(count)
 		button.pressed.connect(func() -> void: fill_recipe_template(recipe))
-		list.add_child(button)
-		template_buttons.append({"button": button, "recipe": recipe})
-	recipe_empty=label("Inga recept hittades",14)
-	list.add_child(recipe_empty)
+		recipe_grid.add_child(button)
+		template_buttons.append({"button":button,"recipe":recipe})
+	recipe_empty=label("Inga recept matchar dina val",14)
+	recipe_empty.autowrap_mode=TextServer.AUTOWRAP_WORD_SMART
+	body.add_child(recipe_empty)
 	recipe_empty.hide()
-	var hint := label("Dimmad = resurser saknas\neller kräver arbetsbänk", 13)
-	side.add_child(hint)
+	body.add_child(label("H\u00e5ll musen \u00f6ver en ikon f\u00f6r namn och ingredienser",12))
+
+func recipe_category_for(kind: String) -> String:
+	if Registry.tool(kind):
+		return "tools"
+	if Registry.catalog.items.get(kind,{}).get("category","") in ["food","tools"]:
+		return Registry.catalog.items[kind].category
+	return "materials"
+
+func recipe_matches_category(kind: String) -> bool:
+	return recipe_category=="all" or recipe_category_for(kind)==recipe_category
+
+func select_recipe_category(category: String) -> void:
+	recipe_category=category
+	var categories: Array[String]=["all","tools","materials","food","reserved"]
+	for i in range(recipe_tabs.size()):
+		recipe_tabs[i].set_pressed_no_signal(categories[i]==category)
+	apply_recipe_filters(true)
 
 func filter_recipes(query: String) -> void:
-	var term: String = query.strip_edges().to_lower()
-	var count: int = 0
+	# Also supports callers that pass a query directly, without a text event.
+	if recipe_search.text!=query:
+		recipe_search.set_block_signals(true)
+		recipe_search.text=query
+		recipe_search.set_block_signals(false)
+	apply_recipe_filters(true,query)
+
+func apply_recipe_filters(reset_scroll: bool=false, query: Variant=null) -> void:
+	if not is_instance_valid(recipe_search) or not is_instance_valid(recipe_empty):
+		return
+	var term: String=(recipe_search.text if query==null else str(query)).strip_edges().to_lower()
+	var count: int=0
 	for entry: Dictionary in template_buttons:
-		var matches: bool = term.is_empty() or Registry.label(entry.recipe.kind).to_lower().contains(term)
+		var matches: bool=(term.is_empty() or Registry.label(entry.recipe.kind).to_lower().contains(term)) and recipe_matches_category(entry.recipe.kind)
+		if recipe_available.button_pressed and not stack_cursor.can_fill(entry.recipe):
+			matches=false
 		entry.button.visible=matches
 		if matches:
 			count+=1
 	recipe_empty.visible=count==0
-	recipe_scroll.scroll_vertical=0
+	if reset_scroll:
+		recipe_scroll.scroll_vertical=0
 
 func fill_recipe_template(recipe: Dictionary) -> void:
 	stack_cursor.bind(inventory, crafting)
@@ -575,10 +693,12 @@ func refresh_slots() -> void:
 		entry.button.disabled = not enabled
 		entry.button.modulate = Color(1, 1, 1, 1 if enabled else 0.4)
 		var needed: Dictionary = stack_cursor.requirements(entry.recipe)
-		var tooltip: String = "Kräver arbetsbänk\n" if int(entry.recipe.width) > crafting.width else "Klicka för att fylla arbetsytan\n"
+		var tooltip: String = "%s \u00d7 %d\n"%[Registry.label(entry.recipe.kind),int(entry.recipe.count)]
+		tooltip += "Kräver arbetsbänk\n" if int(entry.recipe.width) > crafting.width else "Klicka för att fylla arbetsytan\n"
 		for ingredient: String in needed:
 			tooltip += "%d × %s\n" % [needed[ingredient], Registry.label(ingredient)]
 		entry.button.tooltip_text = tooltip.strip_edges()
+	apply_recipe_filters()
 	update_cursor_visual()
 
 func update_held_item() -> void:
@@ -593,7 +713,17 @@ func update_held_item() -> void:
 		held_arm_fore = null
 		swing_phase = 0
 		swing_blend = 0
-		if kind == "gate":
+		if kind=="furnace":
+			ItemVisuals.furnace_model(held_item)
+		elif kind=="boat":
+			ItemVisuals.boat_model(held_item,0.12)
+		elif kind=="sapling":
+			ItemVisuals.sapling_model(held_item)
+		elif kind in ["bucket","water_bucket"]:
+			ItemVisuals.bucket_model(held_item,kind=="water_bucket")
+		elif kind=="coal":
+			ItemVisuals.coal_model(held_item)
+		elif kind == "gate":
 			ItemVisuals.gate_model(held_item,0.15)
 		elif kind == "fence":
 			ItemVisuals.fence_model(held_item,0.15)

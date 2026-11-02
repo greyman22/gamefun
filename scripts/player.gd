@@ -15,6 +15,9 @@ const SPEED: float = 3.0
 const CROUCH_SPEED: float = 0.45
 const SPRINT_MULTIPLIER: float = 2.0
 const DOUBLE_TAP_MS: int = 300
+var world_model: RefCounted
+var riding_boat: Node3D
+var in_water: bool=false
 var sprinting: bool = false
 var last_forward_press: int = -1000
 const SENSITIVITY: float = 0.0025
@@ -75,6 +78,10 @@ func _unhandled_input(event: InputEvent) -> void:
 		camera.rotation.x = clampf(camera.rotation.x - event.relative.y * SENSITIVITY, -1.4, 1.4)
 
 func _physics_process(delta: float) -> void:
+	if is_instance_valid(riding_boat):
+		velocity=Vector3.ZERO
+		jump_requested=false
+		return
 	update_crouch(delta,Input.is_physical_key_pressed(KEY_SHIFT) and not paused and not inventory_open)
 	if paused or inventory_open:
 		sprinting = false
@@ -84,6 +91,10 @@ func _physics_process(delta: float) -> void:
 		velocity = Vector3.ZERO
 		jump_requested = false
 		return
+	var was_in_water: bool=in_water
+	in_water=world_model!=null and world_model.water.contains(global_position+Vector3.UP*0.6)
+	if in_water:
+		sprinting=false
 	var direction := Vector3.ZERO
 	if not paused and not inventory_open:
 		var axis := Vector2(
@@ -99,6 +110,8 @@ func _physics_process(delta: float) -> void:
 	if crouching:
 		sprinting=false
 	var speed: float = CROUCH_SPEED if crouching else SPEED * (SPRINT_MULTIPLIER if sprinting else 1.0)
+	if in_water:
+		speed=1.8
 	velocity.x = direction.x * speed
 	velocity.z = direction.z * speed
 	var repeat_jump: bool = Input.is_physical_key_pressed(KEY_SPACE)
@@ -106,16 +119,26 @@ func _physics_process(delta: float) -> void:
 	if paused or inventory_open:
 		jump_buffer_remaining = 0.0
 	coyote_remaining = COYOTE_TIME if supported_floor() else maxf(0.0, coyote_remaining - delta)
-	if not supported_floor():
-		velocity.y -= 20.0 * delta
+	if in_water:
+		swim_vertical(delta,repeat_jump)
 	else:
-		velocity.y = 0.0
-	if jump_buffer_remaining > 0.0 and coyote_remaining > 0.0 and not paused and not inventory_open:
-		velocity.y = JUMP_SPEED
-		jump_buffer_remaining = 0.0
-		coyote_remaining = 0.0
+		if not supported_floor():
+			velocity.y -= 20.0 * delta
+		else:
+			velocity.y = 0.0
+		if jump_buffer_remaining > 0.0 and coyote_remaining > 0.0 and not paused and not inventory_open:
+			velocity.y = JUMP_SPEED
+			jump_buffer_remaining = 0.0
+			coyote_remaining = 0.0
+	if was_in_water and not in_water and repeat_jump:
+		velocity.y=maxf(velocity.y,5.5)
 	jump_requested = false
-	guard_crouch_edges(delta)
+	if not in_water:
+		guard_crouch_edges(delta)
+	else:
+		crouch_edge_guard_active=false
+		airborne=false
+		fall_peak=position.y
 	if not airborne:
 		fall_peak = position.y
 	fall_peak = maxf(fall_peak, position.y)
@@ -124,8 +147,8 @@ func _physics_process(delta: float) -> void:
 	move_with_fence_guard()
 	if sprinting and not repeat_jump and supported_floor() and is_on_wall():
 		sprinting = false
-	if supported_floor():
-		if airborne:
+	if supported_floor() or in_water:
+		if airborne and not in_water:
 			vitals.damage(Vitals.fall_damage(fall_peak - position.y))
 		airborne = false
 		fall_peak = position.y
@@ -237,3 +260,8 @@ func move_knockback(delta: float) -> void:
 
 func receive_thorns(_source: Vector3) -> void:
 	vitals.damage(5, "bush")
+
+func swim_vertical(delta: float, upward: bool) -> void:
+	velocity.y=move_toward(clampf(velocity.y,-1.5,2.2),2.2 if upward else -0.45,delta*4.0)
+	jump_buffer_remaining=0
+	coyote_remaining=0

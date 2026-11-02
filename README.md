@@ -285,3 +285,62 @@ Crouch movement is 0.45m/s (15% of normal walking speed). Hoe recipe points righ
 Hoe template placement is shifted one column right: first column empty, sticks in centre column with a stone above, and another stone at top right. Recipe shape remains translation-independent for manual crafting.
 
 Natural grass refinement: the shared tuft mesh now contains 34 individual curved/twisted ribbon blades, with scattered interior roots, varied heights/widths/lean and dark-root to lighter-tip colour gradients. This replaces the equal-height ring of broad panels that resembled a cylinder. Meadow height groups and footprints remain unchanged, as do incremental harvest updates and shared MultiMesh rendering.
+
+Crafting dialog layout: recipes occupy the left half as a four-column icon grid; work surface/result and nine-column inventory occupy the right half. Five side tabs provide All, Tools, Materials and two reserved categories. The craftable-only checkbox combines with category/name search and live ingredient/grid-size availability. Icons show batch counts and hover names/ingredients; clicking still fills the existing work surface. Long recipe collections scroll. The same organisation works for 2x2 and 3x3 crafting.
+
+The crafting dialog header has Show/Hide recipes. Collapsing the browser narrows the dialog while keeping the work surface, result and inventory usable. Reopening restores categories, search and availability settings, and the visibility choice persists while closing/reopening inventory during the current session.
+
+Recipe browser refinement: search and craftable-only checkbox share one row. The fourth category is Food (bread), leaving one reserved tab. Every current recipe is covered by Tools, Materials or Food as well as All. Bread has explicit food metadata; uncategorised non-tools default to Materials. Recipe buttons consistently use the output item icon. Soul block artwork is a clearly shaded cube with embedded soul-remnant symbols, shared by recipe and inventory displays.
+
+Clean play start: new Play worlds have no starter pickup tools and an entirely empty inventory/hotbar. Debug retains its supplies. Old starter_-prefixed pickup records are removed when loading; earned inventory and normal pickups remain intact.
+Wooden mining pick: craft three planks across the workbench top and two sticks down the centre. wood_pickaxe uses pickaxe tool_type and 2x work-time multiplier (stone 1.4s versus 0.7s for stone pick), with an independent 40-use lifetime versus 100. Correct-material drop rules and other behaviour are shared; wood artwork distinguishes head/handle in inventory, hand and ground pickups. Debug includes both variants and recipe browser classifies both under Tools.
+
+
+Stone furnace: craft eight stone blocks around an empty centre at the 3x3 workbench. Place and right-click to open a top input slot, lower fuel slot and extraction-only result. Drag/right-split/Shift-move uses the existing inventory cursor; invalid inputs and output insertion are blocked. Logs are the first smelting recipe: one log becomes one coal in three seconds. Coal stacks to 64.
+Fuel duration per item: foliage 0.5s, stick 1s, plank 4s, log 12s, coal 16s. Multiple short fuel items combine; the next fuel item ignites only if input/output permit work. Once lit, fire burns its remaining time even without input. Full output prevents further smelting/new fuel use. Remaining fuel/progress/slots persist in world landmarks; processing continues with the dialog open or closed, including distant known furnaces, while ordinary pause stops time. Mining the furnace drops the oven plus stored items. Burning/unlit stone textures and matching result/coal artwork are included.
+
+Door window lighting: the closed upper door half passes daylight through the exposure calculation while the lower wood panel remains opaque and the door remains solid for player/NPC movement. The door icon now has a genuinely transparent window area. Window tests check a sealed stone room, cache updates, all four unobstructed visual panes and a rendered view of an object outside; deep-tunnel darkness checks still pass.
+
+Torch crafting: one coal above one stick produces four torches. The template uses the left column in 2x2 and centre column in 3x3; manually shifted arrangements still match. Furnace fire display updates smoothly every frame, following remaining fuel and fading gently to zero after extinction; residual display does not provide smelting energy.
+
+### Vattenprototyp
+
+Starta en **ny debugvärld** för fem vattenfyllda gropar längs en stenlagd gång väster om starten (x -8 till -28, z 5). En bergvägg vid x -10, z -7 har en vattenkälla som rinner ut och nedåt. Befintliga sparade världar byggs inte om.
+
+- Debug-inventariet innehåller en trähink och en vattenfylld hink. Receptet för trähinken finns bland verktygen: tre träklossar i V-form på arbetsbänken.
+- Välj tom hink och högerklicka på en vattenkälla för att fylla hinken. Rinnande vatten kan inte samlas in.
+- Välj fylld hink och högerklicka på botten av en grop eller insidan av ett hål i en vägg för att placera källan.
+- Vatten sjunker nedåt tills det når fast underlag och sprids i avtagande nivåer: 100, 75, 50, 25 procent; vid fyra meters avstånd är nivån noll. Ta bort källan för att tömma dess flöde.
+- Spelaren sjunker långsamt i vatten. Håll mellanslag för att simma uppåt. Sikten begränsas under vatten.
+- Källor, flöden, hinkar och väntande flödesuppdateringar sparas med världen. Nya världar genererar även sjöar och floder, se nedan.
+
+### Trädplantor och vattenpåfyllning
+
+Grenverk som huggs eller faller ned ger ungefär 20 % trädplantor, 25 % pinnar och 55 % grenverk. Föremålen faller först till marken och plockas upp på vanligt sätt. Välj **Trädplanta** och högerklicka på jord för att plantera. Efter 2–3 minuter i debug eller 5–10 minuter i spel blir plantan ett helt träd med slumpad stamhöjd 3–6 block. Plantan väntar om utrymmet ovanför är blockerat. Tillväxten och planterade träd sparas med världen. Nya debugvärldar har även plantor i inventariet.
+
+Två vattenkällor med en tom eller rinnande ruta mellan sig skapar en full vattenkälla i mitten. Källorna ska ligga mitt emot varandra på samma höjd och mellanrummet ska ha fast underlag. Detta fungerar i båda riktningarna på markplanet.
+
+### Gräsfrön och varierade träd
+
+Välj gräsfrön i snabbfältet för att locka hönor och kycklingar inom tio meter. De rör sig då ungefär dubbelt så snabbt. Själsrester används fortfarande för parning men lockar inte längre djuren på avstånd.
+
+Nya världar har varierade trädkronor. Högre träd kan få en eller två grenar av stamblock och extra lövverk. Planterade träd får också dessa former. Befintliga sparade världar behåller sin ursprungliga naturliga trädgenerering.
+
+Lockade hönor får lämna sitt vanliga strövområde medan de följer gräsfrön. När lockandet upphör blir deras aktuella plats den nya hempositionen. De strövar sedan inom 20 meters radie från denna. Den nya hempositionen sparas med världen.
+
+### Sjöar, floder och roddbåt
+
+Starta en **ny värld** för det nya vattenlandskapet. Låglänt terräng fylls till gemensam vattennivå, med högst 12 meters naturligt djup. Stora sjöbassänger förbinds av slingrande flodfåror med ungefär 3–20 meters bredd. Bottnen består av jord/sten utan gräs och undervattensväxter. Äldre sparvärldar behåller sin terräng.
+
+Roddbåten har en skrovlängd på två meter och byggs av fem träklossar i arbetsbänken: trä i vänster/höger ruta på en rad och trä i alla tre rutorna under. Båten finns också i inventariet i nya debugvärldar.
+
+- Välj båten och högerklicka på vatten med plats för hela skrovet.
+- Högerklicka på båten för att kliva i.
+- Ro med WASD. Riktningen följer vart du tittar och farten är 6 meter/sekund, samma som spelarens sprintfart. Årorna rör sig medan båten går framåt.
+- Mellanslag: kliv ur. Du kan sedan simma som vanligt.
+- Slå båten tre gånger med vänster musknapp för att få tillbaka den som ett flytande föremål.
+- Båtens position, riktning och om spelaren sitter i den sparas och återställs med världen.
+
+### Bild av spelvyn
+
+Tryck **F4** för att frysa spelet utan pausmeny och släppa muspekaren. Ta sedan ett skärmklipp med **Windows + Shift + S**. Tryck **F4** igen för att fortsätta.

@@ -49,7 +49,20 @@ for i in range(17):
 c=np.asarray(crack,dtype=float)/255
 stone=rgb('727974',tone)*(1-c[:,:,None]*.5)
 stone+=(fine>.985)[:,:,None]*.075
-save('stone',stone,.3+N[2]*.25+N[3]*.12-c*.3,.86+N[2]*.11)
+# Stone uses an original 16x16 pixel motif, enlarged without smoothing.
+# Independent RNG keeps all other material designs reproducible and unchanged.
+pixel_rng=np.random.default_rng(53091)
+pixels=np.full((16,16),126.0)
+for _ in range(95):
+    px,py=pixel_rng.integers(0,16,2)
+    width=int(pixel_rng.integers(1,5));height=int(pixel_rng.integers(1,3))
+    shade=float(pixel_rng.choice([105,112,119,126,133,140,146]))
+    for dy in range(height):
+        for dx in range(width):
+            pixels[(py+dy)%16,(px+dx)%16]=shade
+pixel_tone=np.repeat(np.repeat(pixels,16,axis=0),16,axis=1)/255.0
+pixel_color=np.repeat(pixel_tone[:,:,None],3,axis=2)
+save('stone',pixel_color,.5+(pixel_tone-.5)*.12,.96)
 save('bedrock',rgb('45494e',tone)*(1-c[:,:,None]*.65),.3+N[1]*.35-c*.3,.98)
 # Earth: clumps, tiny roots, embedded pebbles. Grass stays restrained and green.
 earth=rgb('795237',.7+N[1]*.35+N[2]*.28+fine*.11)
@@ -62,8 +75,13 @@ for i in range(1800):
     d.line((int(x),int(y),int(x+rng.integers(-3,4)),int(y-rng.integers(2,7))),fill=int(rng.integers(50,180)),width=1)
 b=np.asarray(blade,dtype=float)/255
 grass+=b[:,:,None]*np.array([.025,.065,.012])
-save('grass',grass,.3+N[2]*.15+b*.25,.96)
-mask=Y<(8+np.sin(X*.15)*2)
+# Blocky green grass motif inspired by classic voxel terrain.
+green_rng=np.random.default_rng(81325)
+green_palette=np.array([[76,139,38],[83,152,41],[93,164,45],[105,177,51],[119,188,58],[139,201,71],[161,218,88]],dtype=float)/255
+pixels=green_palette[green_rng.choice(len(green_palette),(16,16),p=[.08,.16,.24,.24,.16,.09,.03])]
+grass=np.repeat(np.repeat(pixels,16,axis=0),16,axis=1)*0.78
+save('grass',grass,.5+(grass[:,:,1]-.6)*.08,.96)
+mask=Y<(8+np.sin((X//16)*1.5)*2)
 side=earth.copy();side[mask]=grass[mask]
 save('earth_grass',side,np.where(mask,.65,.25+N[2]*.3),.96)
 # Long wood grain, growth rings, bark fissures; no baked lighting/shadows.
@@ -127,15 +145,27 @@ soul[shine]=[.89,.74,.96];sh[shine]=.82
 save('soul',soul,sh,.78)
 furrows=.5+.5*np.cos(Y*2*np.pi/32)
 save('farmland',earth*(.62+.22*furrows[:,:,None]),.2+furrows*.4,.98)
+# Stone oven: recessed mouth and top vent, with a separate burning face.
+oven=stone.copy();oh=.35+N[2]*.12
+mouth=(X>40)&(X<216)&(Y>116)&(Y<222)
+vent=(X>54)&(X<202)&(Y>34)&(Y<66)
+oven[mouth]=[.055,.048,.04];oh[mouth]=.1
+oven[vent]=[.10,.11,.12];oh[vent]=.15
+save('furnace',oven,oh,.96)
+lit=oven.copy();flame=mouth&(Y>153+np.sin(X*.14)*14)
+lit[flame]=rgb('ee8d27',.7+N[2]*.3)[flame]
+coals=mouth&(Y>203);lit[coals]=[1,.52,.12]
+save('furnace_lit',lit,oh,.96)
 manifest={
- 'farmland':['earth','farmland','earth'],'gate':['planks']*3,'gate_open':['planks']*3,'fence':['planks']*3,'air':['earth']*3,'stone':['stone']*3,'dirt':['earth_grass','grass','earth'],
+ 'lakebed':['earth']*3,
+ 'furnace':['furnace','stone','stone'],'furnace_lit':['furnace_lit','stone','stone'],'farmland':['earth','farmland','earth'],'gate':['planks']*3,'gate_open':['planks']*3,'fence':['planks']*3,'air':['earth']*3,'stone':['stone']*3,'dirt':['earth_grass','grass','earth'],
  'wood':['bark','log_end','log_end'],'foliage':['leaves']*3,'planks':['planks']*3,
  'workbench':['bench_side','bench_top','planks'],'chest':['chest_side','chest_top','planks'],
  'bedrock':['bedrock']*3,'soul_block':['soul']*3,'torch':['bark']*3,
  'door':['planks']*3,'door_top':['planks']*3,'door_open':['planks']*3,'door_top_open':['planks']*3}
 (OUT/'manifest.json').write_text(json.dumps(manifest,indent=2),encoding='utf-8')
 # Isometric icons use the exact world textures, with simple face shading.
-for kind in ['stone','dirt','wood','foliage','planks','workbench','chest','bedrock','soul_block']:
+for kind in ['stone','dirt','wood','foliage','planks','workbench','chest','bedrock','soul_block','furnace']:
     icon=Image.new('RGBA',(128,128))
     specs=[(1,(64,12),(48,24),(-48,24),1),(0,(16,36),(48,24),(0,48),.8),(0,(64,60),(48,-24),(0,48),.65)]
     for face,origin,u,v,shade in specs:

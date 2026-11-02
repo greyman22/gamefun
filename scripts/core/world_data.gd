@@ -1,7 +1,12 @@
 extends RefCounted
 
 signal block_changed(cell: Vector3i)
+signal water_changed(cell: Vector3i)
+const Saplings=preload("res://scripts/core/saplings.gd")
+const Water=preload("res://scripts/core/water.gd")
+var water=Water.new()
 signal foliage_fell(cell: Vector3i, kind: String)
+const Furnaces=preload("res://scripts/core/furnaces.gd")
 const Chests = preload("res://scripts/core/chests.gd")
 const Registry = preload("res://scripts/core/registry.gd")
 const Generator = preload("res://scripts/core/generator.gd")
@@ -25,6 +30,7 @@ func _init(value: int = 20261030) -> void:
 	seed_value = value
 	generator = Generator.new(value)
 	world_id = "world_%d_%d" % [value, Time.get_unix_time_from_system()]
+	water.configure(self)
 
 static func key(cell: Vector3i) -> Vector3i:
 	return Vector3i(floori(float(cell.x) / SIZE), floori(float(cell.y) / SIZE), floori(float(cell.z) / SIZE))
@@ -57,16 +63,25 @@ func kind_at(cell: Vector3i) -> String:
 	return Registry.kind(block(cell))
 
 func set_block(cell: Vector3i, kind_name: String) -> bool:
-	if not Registry.catalog.blocks.has(kind_name) or kind_at(cell) == "bedrock":
+	var previous: String=kind_at(cell)
+	if not Registry.catalog.blocks.has(kind_name) or previous == "bedrock":
 		return false
 	if kind_at(cell) == "chest":
 		Chests.unpair(self, cell)
+	if previous=="sapling" and kind_name!="sapling":
+		entities.erase(Saplings.id_for(self,cell))
 	var chunk_key := key(cell)
 	var value: int = Registry.id(kind_name)
 	if not edits.has(chunk_key):
 		edits[chunk_key] = {}
 	edits[chunk_key][index(cell)] = value
-	cache.erase(chunk_key)
+	if cache.has(chunk_key):
+		var cached: PackedByteArray=cache[chunk_key]
+		cached.encode_u16(index(cell)*2,value)
+		cache[chunk_key]=cached
+	if (previous=="air" or Water.wet(previous)) and (kind_name=="air" or Water.wet(kind_name)) and (Water.wet(previous) or Water.wet(kind_name)):
+		water_changed.emit(cell)
+		return true
 	if kind_name == "chest":
 		Chests.pair(self, cell)
 	for offset in [Vector3i.ZERO, Vector3i.LEFT, Vector3i.RIGHT, Vector3i.UP, Vector3i.DOWN, Vector3i.FORWARD, Vector3i.BACK]:
@@ -104,8 +119,15 @@ func supported(tree: Dictionary) -> bool:
 	return Registry.cube(block(tree.base + Vector3i.DOWN))
 
 func schedule_decay(cell: Vector3i) -> void:
-	var tree: Dictionary = generator.owner(cell)
+	var tree: Dictionary = Saplings.owner(self,cell)
+	if tree.is_empty():
+		tree=generator.owner(cell)
 	if tree.is_empty() or supported(tree):
+		return
+	if tree.has("voxels"):
+		for offset in tree.voxels:
+			if int(tree.voxels[offset])==4:
+				queue_leaf(tree.base+offset,tree)
 		return
 	var top: Vector3i = tree.base + Vector3i(0, tree.height, 0)
 	for x in range(-1, 2):
@@ -121,17 +143,20 @@ func queue_leaf(cell: Vector3i, tree: Dictionary) -> void:
 
 func advance(delta: float) -> void:
 	game_time += delta
+	Furnaces.tick(self,delta)
+	water.tick(delta)
 	decay_tick += delta
 	if decay_tick < 1.0:
 		return
 	decay_tick = 0
+	Saplings.tick(self)
 	for cell: Vector3i in decay.keys():
 		var record: Dictionary = decay[cell]
 		if supported(record.tree) or kind_at(cell) != "foliage":
 			decay.erase(cell)
 		elif record.deadline <= game_time:
 			set_block(cell, "air")
-			foliage_fell.emit(cell,"stick" if randf() < 0.25 else "foliage")
+			foliage_fell.emit(cell,Saplings.foliage_drop())
 			decay.erase(cell)
 
 func export_state() -> Dictionary:
@@ -142,14 +167,14 @@ func export_state() -> Dictionary:
 			pairs.append(offset)
 			pairs.append(edits[chunk_key][offset])
 		saved_edits[text_key(chunk_key)] = pairs
-	return {"seed": seed_value, "generator_version": Generator.VERSION, "world_id": world_id, "time": game_time, "ids": Registry.saved_ids(), "edits": saved_edits, "entities": entities.duplicate(true), "landmarks": landmarks.duplicate(true), "containers": containers.duplicate(true), "decay": decay.duplicate(true)}
+	return {"seed": seed_value, "generator_version": generator.version, "world_id": world_id, "time": game_time, "ids": Registry.saved_ids(), "edits": saved_edits, "entities": entities.duplicate(true), "landmarks": landmarks.duplicate(true), "containers": containers.duplicate(true), "decay": decay.duplicate(true)}
 
 func import_state(state: Dictionary) -> bool:
 	if not state.has_all(["seed", "generator_version", "world_id", "time", "ids", "edits", "entities", "decay"]):
 		return false
 	if not state.ids is Dictionary or not state.edits is Dictionary or not state.entities is Dictionary or not state.decay is Dictionary:
 		return false
-	if state.get("generator_version", -1) != Generator.VERSION:
+	if state.get("generator_version", -1) not in [1,2,Generator.VERSION]:
 		return false
 	for record: Variant in state.entities.values():
 		if not record is Dictionary or not record.has_all(["type", "position"]) or not record.position is Vector3:
@@ -185,7 +210,7 @@ func import_state(state: Dictionary) -> bool:
 			changes[pairs[cursor]] = mapping[pairs[cursor + 1]]
 		imported[parse_key(encoded)] = changes
 	seed_value = state.seed
-	generator = Generator.new(seed_value)
+	generator = Generator.new(seed_value,int(state.generator_version))
 	world_id = state.world_id
 	game_time = state.time
 	edits = imported
@@ -194,6 +219,7 @@ func import_state(state: Dictionary) -> bool:
 	entities = state.entities.duplicate(true)
 	decay = state.decay.duplicate(true)
 	cache.clear()
+	water.configure(self)
 	if not landmarks.has("chest_pairs"):
 		for cell: Vector3i in containers:
 			Chests.pair(self, cell)

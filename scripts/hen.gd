@@ -1,5 +1,6 @@
 extends Node3D
 const Combat = preload("res://scripts/core/combat.gd")
+const Registry=preload("res://scripts/core/registry.gd")
 const Space = preload("res://scripts/core/actor_space.gd")
 const Knockback = preload("res://scripts/core/knockback.gd")
 var knockback = Knockback.new()
@@ -22,7 +23,7 @@ var wait: float = 0
 var route: Array[Vector3] = []
 var resting: bool = false
 var pursuit_allowed: bool = true
-var following_soul: bool = false
+var following_seeds: bool = false
 var phase: float = 0
 var step_from := Vector3.ZERO
 var step_to := Vector3.ZERO
@@ -39,6 +40,7 @@ func configure(data: RefCounted, value: Dictionary) -> void:
 	step_time = float(state.get("step_time", 1))
 	gliding = bool(state.get("gliding",false))
 	glide_duration = float(state.get("glide_duration",1))
+	following_seeds=bool(state.get("following_seeds",false))
 	phase = float(state.get("phase", 0))
 	health = float(state.get("health", Combat.stats("hen" if Hens.adult(record, model.game_time) else "chick").health))
 	chick = bool(state.get("was_chick", not Hens.adult(record, model.game_time)))
@@ -105,7 +107,7 @@ func build() -> void:
 		Visuals.tool_part(leg, Vector3(0, -0.08, 0), Vector3(0.045, 0.24, 0.045), orange)
 		Visuals.tool_part(leg, Vector3(0, -0.175, -0.07), Vector3(0.12, 0.05, 0.21), orange)
 
-func simulate(delta: float, soul_lure: Variant = null) -> void:
+func simulate(delta: float, seed_lure: Variant = null) -> void:
 	if resting != Hens.resting(record, model.game_time):
 		build()
 	hurt_time = maxf(0, hurt_time - delta)
@@ -117,16 +119,18 @@ func simulate(delta: float, soul_lure: Variant = null) -> void:
 			for axis in [0, 2]:
 				var next := position
 				next[axis] += movement[axis] / steps
-				if Vector2(next.x - record.home.x, next.z - record.home.z).length() <= 15 and Space.clear(model, next, 0.15 if chick else 0.25, 0.45 if chick else 0.9):
+				if (following_seeds or Vector2(position.x-record.home.x,position.z-record.home.z).length()>Hens.RADIUS or Vector2(next.x - record.home.x, next.z - record.home.z).length() <= Hens.RADIUS) and Space.clear(model, next, 0.15 if chick else 0.25, 0.45 if chick else 0.9):
 					var shift := next - position
 					position = next
 					step_from += shift
 					step_to += shift
-	var attracted: bool = pursuit_allowed and soul_lure is Vector3 and position.distance_to(soul_lure) <= 10.0
-	if attracted != following_soul:
+	var attracted: bool = pursuit_allowed and seed_lure is Vector3 and position.distance_to(seed_lure) <= 10.0
+	if attracted != following_seeds:
+		if following_seeds and not attracted:
+			record.home=step_to if gliding and step_time<1 else position
 		route.clear()
 		wait = 0
-		following_soul = attracted
+		following_seeds = attracted
 	if chick == Hens.adult(record, model.game_time):
 		build()
 	phase += delta
@@ -135,7 +139,7 @@ func simulate(delta: float, soul_lure: Variant = null) -> void:
 		hearts[index].visible = remaining > 0
 		hearts[index].position = Vector3(cos(index * TAU / 4) * 0.4, 0.9 + (1.5 - remaining) * 0.5, sin(index * TAU / 4) * 0.4)
 	if step_time < 1:
-		step_time = minf(1,step_time+delta/glide_duration if gliding else step_time+delta*1.3)
+		step_time = minf(1,step_time+delta/glide_duration if gliding else step_time+delta*(2.6 if attracted else 1.3))
 		position = step_from.lerp(step_to, step_time)
 		var level_change: float = absf(step_to.y - step_from.y)
 		if gliding:
@@ -147,7 +151,7 @@ func simulate(delta: float, soul_lure: Variant = null) -> void:
 		elif level_change > 0.1:
 			position.y += sin(step_time * PI) * (0.2 + level_change * 0.5)
 		for index in range(legs.size()):
-			legs[index].rotation.x = -0.45 if gliding else sin(phase * 12 + index * PI) * 0.45
+			legs[index].rotation.x = -0.45 if gliding else sin(phase * (20 if attracted else 12) + index * PI) * 0.45
 		visual.rotation.z = 0.0 if gliding else sin(phase * 12) * 0.07
 		return
 	gliding=false
@@ -170,21 +174,36 @@ func simulate(delta: float, soul_lure: Variant = null) -> void:
 			position = position.move_toward(target, delta * 1.3)
 			return
 	elif attracted:
-		target = soul_lure
+		target = seed_lure
 		route.clear()
 		if Vector2(position.x - target.x, position.z - target.z).length() <= 1.1 and absf(position.y-target.y)<=1.0:
 			return
+		if Vector3i(position.floor())==Vector3i(target.floor()):
+			# Grid navigation has no path inside its starting cell. Complete the
+			# last short approach continuously, while keeping feet on ground.
+			var offset: Vector3=target-position
+			offset.y=0
+			var candidate: Vector3=position+offset.normalized()*minf(delta*2.6,maxf(0,offset.length()-1.0))
+			var floor_cell:=Vector3i((candidate-Vector3(0,0.05,0)).floor())
+			if Registry.cube(model.block(floor_cell)) and Space.clear(model,candidate,0.15 if chick else 0.25,0.45 if chick else 0.9):
+				position=candidate
+				step_from=position
+				step_to=position
+				for index in range(legs.size()):
+					legs[index].rotation.x=sin(phase*20+index*PI)*0.45
+			return
 	elif route.is_empty():
-		var angle := randf() * TAU
-		target += Vector3(cos(angle), 0, sin(angle)) * randf_range(1, 13)
-		target.y = model.generator.height(floori(target.x), floori(target.z))
+		if Vector2(position.x-record.home.x,position.z-record.home.z).length()<=Hens.RADIUS:
+			var angle := randf() * TAU
+			target += Vector3(cos(angle), 0, sin(angle)) * randf_range(1, Hens.RADIUS-2)
+			target.y = model.generator.height(floori(target.x), floori(target.z))
 	if route.is_empty():
 		route = navigation.path(position, target)
 	if route.is_empty():
 		wait = 1
 		return
 	var next: Vector3 = route.pop_front()
-	if Vector2(next.x - record.home.x, next.z - record.home.z).length() > 15:
+	if not attracted and Vector2(position.x-record.home.x,position.z-record.home.z).length()<=Hens.RADIUS and Vector2(next.x - record.home.x, next.z - record.home.z).length() > Hens.RADIUS:
 		route.clear()
 		return
 	step_from = position
@@ -197,7 +216,7 @@ func simulate(delta: float, soul_lure: Variant = null) -> void:
 		wait = randf_range(1, 3)
 
 func serialize_state() -> Dictionary:
-	return {"step_from":step_from, "step_to":step_to, "step_time":step_time, "phase":phase, "gliding":gliding,"glide_duration":glide_duration, "health":health, "was_chick":chick, "knockback":knockback.snapshot()}
+	return {"following_seeds":following_seeds,"step_from":step_from, "step_to":step_to, "step_time":step_time, "phase":phase, "gliding":gliding,"glide_duration":glide_duration, "health":health, "was_chick":chick, "knockback":knockback.snapshot()}
 
 func receive_hit(amount: float) -> void:
 	health = maxf(0, health - amount)

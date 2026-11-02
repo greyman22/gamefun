@@ -5,7 +5,7 @@ var chunks: Dictionary = {}
 var limit: int = 384
 
 func get_base(seed_value: int, key: Vector3i, generator: RefCounted) -> PackedByteArray:
-	var cache_key: String = "%d:%d,%d,%d" % [seed_value, key.x, key.y, key.z]
+	var cache_key: String = "%d:v%d:%d,%d,%d" % [seed_value, generator.version, key.x, key.y, key.z]
 	mutex.lock()
 	if chunks.has(cache_key):
 		var existing: PackedByteArray = chunks[cache_key]

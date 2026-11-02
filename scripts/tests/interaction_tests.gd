@@ -302,7 +302,10 @@ func check_world_and_ui() -> void:
 				world.stack_cursor.touch(index)
 			world.stack_cursor.finish()
 			world.refresh_slots()
-		expect(world.template_buttons.size() == 14, "Recipe strip must include all fourteen unique products")
+		var products: Dictionary={}
+		for recipe in Registry.catalog.recipes:
+			products[recipe.kind]=true
+		expect(world.template_buttons.size() == products.size(), "Recipe strip must include all registered products")
 		for entry: Dictionary in world.template_buttons:
 			expect(entry.button.disabled == not world.stack_cursor.can_fill(entry.recipe), "Missing materials or insufficient grid must dim recipe")
 		if "--capture-ui" in OS.get_cmdline_user_args():

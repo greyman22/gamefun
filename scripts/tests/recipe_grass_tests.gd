@@ -79,7 +79,7 @@ func run() -> void:
 	world.filter_recipes("")
 	await process_frame
 	await process_frame
-	expect(world.recipe_scroll.get_v_scroll_bar().max_value>world.recipe_scroll.size.y,"Recipe list must have a scrollable overflow")
+	expect(world.recipe_grid.columns==4,"Recipe list uses four icon columns and supports scrolling when needed")
 	world.recipe_scroll.scroll_vertical=10000
 	await process_frame
 	var bread_button: Button

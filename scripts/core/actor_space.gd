@@ -1,4 +1,5 @@
 extends RefCounted
+const HEN_WANDER_RADIUS: float=20.0
 const Registry = preload("res://scripts/core/registry.gd")
 
 static func radius(kind: String, node: Node3D) -> float:
@@ -21,9 +22,9 @@ static func move(system: Node, entry: Dictionary, offset: Vector3) -> float:
 	for axis in [0, 2]:
 		var candidate := node.position
 		candidate[axis] += offset[axis]
-		if not clear(system.model, candidate, entry.radius * 0.72, entry.height):
+		if (entry.kind=="zombie" and not node.clear_at(candidate)) or (entry.kind!="zombie" and not clear(system.model, candidate, entry.radius * 0.72, entry.height)):
 			continue
-		if entry.kind == "hen" and Vector2(candidate.x - node.record.home.x, candidate.z - node.record.home.z).length() > 15:
+		if entry.kind == "hen" and not node.following_seeds and Vector2(node.position.x-node.record.home.x,node.position.z-node.record.home.z).length()<=HEN_WANDER_RADIUS and Vector2(candidate.x - node.record.home.x, candidate.z - node.record.home.z).length() > HEN_WANDER_RADIUS:
 			continue
 		node.position = candidate
 	var shift := node.position - before

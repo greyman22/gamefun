@@ -4,6 +4,7 @@ const TOOL_TIPS := {
 	"stone_sword": Vector3(0,0.4,0),
 	"axe": Vector3(0.0765,0.1,0),
 	"pickaxe": Vector3(0.096,0.077,0),
+	"wood_pickaxe": Vector3(0.096,0.077,0),
 	"shovel": Vector3(0,0.28,0),
 	"hoe": Vector3(0.1,0.09,0)
 }
@@ -12,9 +13,22 @@ const Surfaces = preload("res://scripts/rendering/surface_textures.gd")
 const Registry = preload("res://scripts/core/registry.gd")
 
 const NAMES: Dictionary = {"stone": "Stenblock", "wood": "Trädstam", "planks": "Träkloss", "stick": "Träpinne", "workbench": "Arbetsbänk", "dirt": "Jordblock", "foliage": "Grenverk", "axe": "Yxa", "pickaxe": "Gruvhacka", "shovel": "Spade", "torch": "Fackla", "": "Hand"}
-const TOOL_KINDS: Array[String] = ["axe", "pickaxe", "shovel", "hoe"]
+const TOOL_KINDS: Array[String] = ["axe", "pickaxe", "shovel", "hoe", "wood_pickaxe"]
 
 static func icon(kind: String) -> Texture2D:
+	if kind=="boat":
+		var image:=Image.new()
+		image.load_svg_from_string('<svg xmlns="http://www.w3.org/2000/svg" width="96" height="96"><path d="M9 44L57 16L87 31L81 64L35 86L15 69Z" fill="#89572f" stroke="#4b321f" stroke-width="3"/><path d="M9 44L57 16L87 31L35 61Z" fill="#cf9e62" stroke="#694526" stroke-width="4"/><path d="M23 43L58 24L73 32L36 53Z" fill="#614329"/><path d="M32 39L47 47M45 32L60 39" stroke="#d8ae73" stroke-width="6"/><path d="M10 19L75 78M68 12L22 87" stroke="#d6ac70" stroke-width="4"/><path d="M64 70L79 81M16 83L25 89" stroke="#b78043" stroke-width="9"/></svg>')
+		return ImageTexture.create_from_image(image)
+	if kind=="sapling":
+		var image:=Image.new()
+		image.load_svg_from_string('<svg xmlns="http://www.w3.org/2000/svg" width="96" height="96"><g transform="translate(15 0) scale(0.68 1)"><path d="M45 87L46 29H53L52 87Z" fill="#805432" stroke="#4a3526" stroke-width="3"/><path d="M47 62C18 66 12 46 17 32C38 29 48 41 47 62Z" fill="#61943c" stroke="#345c29" stroke-width="3"/><path d="M52 46C51 24 68 15 83 18C86 38 72 49 52 46Z" fill="#79a94c" stroke="#345c29" stroke-width="3"/><path d="M48 33C31 27 30 14 39 6C55 7 61 20 48 33Z" fill="#8bb85a" stroke="#345c29" stroke-width="3"/><path d="M25 42L46 60M54 44L74 26" stroke="#a3c878" stroke-width="3"/></g></svg>')
+		return ImageTexture.create_from_image(image)
+	if kind in ["bucket","water_bucket"]:
+		var image:=Image.new()
+		var fill: String="#438db9" if kind=="water_bucket" else "#493522"
+		image.load_svg_from_string('<svg xmlns="http://www.w3.org/2000/svg" width="96" height="96"><path d="M23 40V26C23 2 73 2 73 26V40" fill="none" stroke="#59504a" stroke-width="6"/><path d="M16 34L25 85Q48 94 71 85L80 34Z" fill="#b88a54" stroke="#553d29" stroke-width="4"/><ellipse cx="48" cy="34" rx="32" ry="11" fill="'+fill+'" stroke="#705035" stroke-width="4"/><path d="M23 54H74M27 78H70M36 46L39 85M60 46L57 85" stroke="#725136" stroke-width="4"/></svg>')
+		return ImageTexture.create_from_image(image)
 	if kind in ["fence","gate"]:
 		var picture := Image.new()
 		var svg: String = '<svg xmlns="http://www.w3.org/2000/svg" width="96" height="96"><g stroke="#614628" stroke-width="2" stroke-linejoin="round"><path d="M16 19L25 14L25 77L16 82Z" fill="#9b6839"/><path d="M25 14L33 19L33 82L25 77Z" fill="#c59a63"/><path d="M66 35L75 30L75 85L66 90Z" fill="#9b6839"/><path d="M75 30L83 35L83 90L75 85Z" fill="#c59a63"/><path d="M12 28L21 23L87 44L78 49Z" fill="#e2bc83"/><path d="M12 28L78 49L78 58L12 37Z" fill="#b5844c"/><path d="M12 49L21 44L87 65L78 70Z" fill="#e2bc83"/><path d="M12 49L78 70L78 79L12 58Z" fill="#b5844c"/></g></svg>'
@@ -24,6 +38,11 @@ static func icon(kind: String) -> Texture2D:
 			svg = svg.replace('<g stroke=','<g transform="translate(14.4 0) scale(0.7 1)" stroke=')
 		picture.load_svg_from_string(svg)
 		return ImageTexture.create_from_image(picture)
+	if kind=="soul_block":
+		var block := Image.new()
+		# The result is a solid cube with an embedded remnant, not a loose orb.
+		block.load_svg_from_string('<svg xmlns="http://www.w3.org/2000/svg" width="96" height="96"><g stroke="#321640" stroke-width="2" stroke-linejoin="round"><path d="M48 6L87 26L48 47L9 26Z" fill="#8b50a1"/><path d="M9 26L48 47V91L9 70Z" fill="#63317e"/><path d="M48 47L87 26V70L48 91Z" fill="#422154"/></g><path d="M22 41L31 46L35 55L36 65L31 73L23 68L18 59L18 48Z" fill="#321344"/><path d="M24 45L30 49L33 57L32 65L28 68L22 62L21 54Z" fill="#ad55e6"/><path d="M24 48L28 51L29 58L25 58L23 54Z" fill="#f1d5ff"/><path d="M58 51L65 47L73 52L74 62L68 70L60 68L56 60Z" fill="#632f83"/><path d="M61 53L66 51L70 55L70 62L65 66L60 61Z" fill="#a956d9"/><path d="M63 54L66 54L66 58L63 59Z" fill="#dfb5f4"/><path d="M24 22L38 15M63 16L77 24M15 34L15 65M82 34L82 66" fill="none" stroke="#b57cc9" stroke-width="2" opacity="0.45"/></svg>')
+		return ImageTexture.create_from_image(block)
 	var detailed: Texture2D = Surfaces.icon(kind)
 	if detailed != null:
 		return detailed
@@ -43,7 +62,7 @@ static func icon(kind: String) -> Texture2D:
 		return ImageTexture.create_from_image(picture)
 	if kind == "door":
 		var picture := Image.new()
-		var detail: String = '<path d="M23 8H73V88H23Z" fill="#b98b54" stroke="#674523" stroke-width="4"/><path d="M32 18H64V44H32Z" fill="#536d70" stroke="#674523" stroke-width="5"/><path d="M48 18V44M32 31H64M32 55H64V78H32Z" fill="none" stroke="#76522e" stroke-width="3"/><circle cx="65" cy="52" r="4" fill="#edc76d"/>' if kind == "door" else '<path d="M12 42L58 19L84 33L38 56Z" fill="#d9ac72"/><path d="M12 42V54L38 68V56Z" fill="#b68650"/><path d="M38 56L84 33V45L38 68Z" fill="#9b6d3e"/><path d="M24 41L57 25M36 47L69 31" stroke="#bd8b53" stroke-width="2"/>'
+		var detail: String = '<path d="M23 8H73V88H23ZM32 18V44H64V18Z" fill-rule="evenodd" fill="#b98b54" stroke="#674523" stroke-width="4"/><path d="M32 18H64V44H32Z" fill="none" stroke="#674523" stroke-width="5"/><path d="M48 18V44M32 31H64M32 55H64V78H32Z" fill="none" stroke="#76522e" stroke-width="3"/><circle cx="65" cy="52" r="4" fill="#edc76d"/>' if kind == "door" else '<path d="M12 42L58 19L84 33L38 56Z" fill="#d9ac72"/><path d="M12 42V54L38 68V56Z" fill="#b68650"/><path d="M38 56L84 33V45L38 68Z" fill="#9b6d3e"/><path d="M24 41L57 25M36 47L69 31" stroke="#bd8b53" stroke-width="2"/>'
 		picture.load_svg_from_string('<svg xmlns="http://www.w3.org/2000/svg" width="96" height="96">'+detail+'</svg>')
 		return ImageTexture.create_from_image(picture)
 	if kind == "raw_chicken":
@@ -74,6 +93,10 @@ static func icon(kind: String) -> Texture2D:
 		var fire := Image.new()
 		fire.load_svg_from_string('<svg xmlns="http://www.w3.org/2000/svg" width="96" height="96"><path d="M39 44L56 44L53 88L41 88Z" fill="#986131"/><path d="M29 39L35 20L45 30L51 5L67 31L64 48L47 60L30 50Z" fill="#ff8528"/><path d="M39 44L48 26L57 43L48 53Z" fill="#ffe77b"/></svg>')
 		return ImageTexture.create_from_image(fire)
+	if kind=="coal":
+		var image:=Image.new()
+		image.load_svg_from_string('<svg xmlns="http://www.w3.org/2000/svg" width="96" height="96"><path d="M18 29L44 12L73 22L87 50L72 79L36 87L12 65Z" fill="#292a2c" stroke="#111316" stroke-width="4"/><path d="M18 29L44 12L58 39L30 53Z" fill="#53565b"/><path d="M58 39L73 22L87 50L63 62Z" fill="#3d4045"/><path d="M30 53L58 39L63 62L36 87Z" fill="#36383d"/><path d="M24 32L41 22" stroke="#777b80" stroke-width="4"/></svg>')
+		return ImageTexture.create_from_image(image)
 	if kind in ["grass_seed","grain","bread"]:
 		var picture := Image.new()
 		var shapes: String = {
@@ -89,7 +112,9 @@ static func icon(kind: String) -> Texture2D:
 			"axe": '<path d="M46 14L81 14L81 49L66 49L54 35L45 31Z" fill="#b8d0d9" stroke="#506978" stroke-width="3"/>',
 			"pickaxe": '<path d="M16 31L34 13L60 12L82 29L84 43L61 29L41 27L19 43Z" fill="#b8d0d9" stroke="#506978" stroke-width="3"/>',
 			"shovel": '<path d="M32 50L62 50L67 70L48 88L28 70Z" fill="#b8d0d9" stroke="#506978" stroke-width="3"/><path d="M37 8L58 8L56 22L40 22Z" fill="none" stroke="#b8d0d9" stroke-width="5"/>'
-		}[kind]
+		}[Registry.tool_type(kind)]
+		if kind=="wood_pickaxe":
+			head=head.replace("#b8d0d9","#bd9157").replace("#506978","#654628")
 		var svg := '<svg xmlns="http://www.w3.org/2000/svg" width="96" height="96"><path d="M44 18L54 18L50 82L40 82Z" fill="#b57b40" stroke="#634020" stroke-width="2"/>%s</svg>' % head
 		if kind=="hoe":
 			svg=svg.replace('<path d="M44','<g transform="rotate(22 48 48)"><path d="M44').replace("</svg>","</g></svg>")
@@ -225,13 +250,13 @@ static func tool_model(parent: Node3D, kind: String, scale_factor: float = 1.0) 
 	model.scale = Vector3.ONE * scale_factor
 	parent.add_child(model)
 	var handle := Surfaces.material("wood").duplicate() as StandardMaterial3D
-	var metal := Surfaces.material("stone").duplicate() as StandardMaterial3D
+	var metal := Surfaces.material("planks" if kind=="wood_pickaxe" else "stone").duplicate() as StandardMaterial3D
 	if kind == "stone_sword":
 		# Total length 0.5 m: wooden grip 0.05 m (10 percent).
 		tool_part(model, Vector3(0, -0.075, 0), Vector3(0.026, 0.05, 0.028), handle)
 	else:
 		tool_part(model, Vector3(0, -0.015, 0), Vector3(0.022, 0.19, 0.025), handle)
-	match kind:
+	match Registry.tool_type(kind):
 		"stone_sword":
 			tool_part(model, Vector3(0, -0.0375, 0), Vector3(0.13, 0.025, 0.035), metal)
 			tool_part(model, Vector3(0, 0.17, 0), Vector3(0.048, 0.39, 0.018), metal)
@@ -411,3 +436,74 @@ static func farm_item_model(parent: Node3D, kind: String) -> void:
 		for i in range(3):
 			tool_part(parent,Vector3((i-1)*0.035,0,0),Vector3(0.012,0.17,0.012),material)
 			tool_part(parent,Vector3((i-1)*0.035,0.1,0),Vector3(0.03,0.06,0.025),material)
+
+static func coal_model(parent: Node3D) -> void:
+	var mesh:=MeshInstance3D.new()
+	var shape:=SphereMesh.new()
+	shape.radius=0.095
+	shape.height=0.16
+	shape.radial_segments=7
+	shape.rings=4
+	mesh.mesh=shape
+	var material:=StandardMaterial3D.new()
+	material.albedo_color=Color("303237")
+	material.roughness=1
+	mesh.material_override=material
+	parent.add_child(mesh)
+
+static func furnace_model(parent: Node3D, size: float=0.2) -> void:
+	tool_part(parent,Vector3.ZERO,Vector3.ONE*size,Surfaces.material("stone"))
+	tool_part(parent,Vector3(0,0,-0.501)*size,Vector3(1,1,0.002)*size,Surfaces.material("furnace"))
+
+static func bucket_model(parent: Node3D, filled: bool) -> void:
+	var wood:=Surfaces.material("planks")
+	for i in range(8):
+		var angle: float=i*TAU/8
+		var part:=tool_part(parent,Vector3(sin(angle)*0.08,0,cos(angle)*0.08),Vector3(0.067,0.17,0.018),wood)
+		part.rotation.y=angle
+	tool_part(parent,Vector3(0,-0.085,0),Vector3(0.14,0.015,0.14),wood)
+	var metal:=StandardMaterial3D.new()
+	metal.albedo_color=Color(0.28,0.26,0.23)
+	for side in [-1,1]:
+		tool_part(parent,Vector3(side*0.085,0.12,0),Vector3(0.012,0.12,0.012),metal)
+	tool_part(parent,Vector3(0,0.18,0),Vector3(0.18,0.012,0.012),metal)
+	if filled:
+		var water:=StandardMaterial3D.new()
+		water.albedo_color=Color(0.18,0.5,0.72)
+		tool_part(parent,Vector3(0,0.06,0),Vector3(0.14,0.008,0.14),water)
+
+static func sapling_model(parent: Node3D, factor: float=1.0) -> void:
+	var root:=Node3D.new()
+	root.scale=Vector3(0.68,1,0.68)*factor
+	parent.add_child(root)
+	var bark:=StandardMaterial3D.new()
+	bark.albedo_color=Color("805432")
+	tool_part(root,Vector3(0,0.085,0),Vector3(0.018,0.17,0.018),bark)
+	for i in range(5):
+		var leaf:=StandardMaterial3D.new()
+		leaf.albedo_color=Color("669541").lightened(float(i%3)*0.07)
+		leaf.roughness=0.95
+		var side: float=1 if i%2==0 else -1
+		var part:=tool_part(root,Vector3(side*0.035,0.065+i*0.028,0),Vector3(0.09,0.018,0.05),leaf)
+		part.rotation.z=side*0.45
+		part.rotation.y=i*0.55
+
+static func boat_model(parent: Node3D, factor: float=1.0) -> Node3D:
+	var hull:=Node3D.new()
+	hull.scale=Vector3.ONE*factor
+	parent.add_child(hull)
+	var wood:=Surfaces.material("planks")
+	tool_part(hull,Vector3(0,-0.12,0),Vector3(0.86,0.13,1.92),wood)
+	for side in [-1,1]:
+		tool_part(hull,Vector3(side*0.45,0.1,0),Vector3(0.1,0.42,1.95),wood)
+		tool_part(hull,Vector3(0,0.1,side*0.95),Vector3(0.85,0.4,0.1),wood)
+		tool_part(hull,Vector3(0,0.14,side*0.42),Vector3(0.82,0.1,0.22),wood)
+	for i in range(2):
+		var side: float= -1 if i==0 else 1
+		var pivot:=Node3D.new()
+		pivot.name="Oar%d"%i
+		pivot.position=Vector3(side*0.45,0.25,0)
+		hull.add_child(pivot)
+		tool_part(pivot,Vector3(side*0.5,0,0),Vector3(1.1,0.045,0.045),wood)
+		tool_part(pivot,Vector3(side*0.97,-0.02,0),Vector3(0.36,0.07,0.18),wood)
+	return hull

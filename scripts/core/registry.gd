@@ -69,16 +69,19 @@ static func tool(kind_name: String) -> bool:
 static func stack_limit(kind_name: String) -> int:
 	return 1 if tool(kind_name) else int(catalog.items.get(kind_name, {}).get("stack", 64))
 
+static func tool_type(tool_name: String) -> String:
+	return str(catalog.items.get(tool_name,{}).get("tool_type",tool_name))
+
 static func seconds(tool_name: String, kind_name: String) -> float:
 	if not breakable(kind_name):
 		return INF
 	var block: Dictionary = catalog.blocks.get(kind_name, {})
 	var base: float = float(block.get("seconds", 3.0))
-	return float(block.get("tool_seconds", 0.7)) if block.get("tool", "") == tool_name else base
+	return float(block.get("tool_seconds",0.7))*float(catalog.items.get(tool_name,{}).get("work_time_multiplier",1.0)) if block.get("tool","")==tool_type(tool_name) else base
 
 static func drops(tool_name: String, kind_name: String) -> bool:
 	var block: Dictionary = catalog.blocks.get(kind_name, {})
-	return block.get("drop", true) and (not block.get("requires_tool_for_drop", false) or block.get("tool") == tool_name)
+	return block.get("drop", true) and (not block.get("requires_tool_for_drop", false) or block.get("tool") == tool_type(tool_name))
 
 static func tile(value: int, normal: Vector3i) -> int:
 	return int(tiles.get(value, 0)) + (1 if normal.y > 0 else (2 if normal.y < 0 else 0))

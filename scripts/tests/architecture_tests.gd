@@ -57,7 +57,11 @@ func check_generation_and_data() -> void:
 	expect(a == second.generate(here) and a.size() == 8192, "Seed and coordinates must deterministically generate compact 16-cube chunks")
 	expect(Data.key(Vector3i(-1, -1, -17)) == Vector3i(-1, -1, -2) and Data.index(Vector3i(-1, -1, -1)) == 4095, "Negative coordinates must floor correctly")
 	var changed_seed := Generator.new(98765)
-	expect(first.generate(Vector3i(5, -1, 5)) != changed_seed.generate(Vector3i(5, -1, 5)), "Different seeds must change the landscape")
+	var seed_differs: bool=false
+	for x in range(-200,201,40):
+		for z in range(-200,201,40):
+			seed_differs=seed_differs or first.height(x,z)!=changed_seed.height(x,z)
+	expect(seed_differs, "Different seeds must change the landscape")
 	var data := Data.new(123456)
 	var cell := Vector3i(15, -1, 8)
 	data.set_block(cell, "air")
@@ -91,7 +95,11 @@ func check_generation_and_data() -> void:
 		if not tree.is_empty():
 			break
 	data.set_block(tree.base, "air")
-	expect(data.decay.size() == 14, "Cutting a generated tree must schedule crown decay")
+	var expected_leaves: int=0
+	for offset in tree.voxels:
+		if int(tree.voxels[offset])==4 and data.kind_at(tree.base+offset)=="foliage":
+			expected_leaves+=1
+	expect(data.decay.size() == expected_leaves and expected_leaves>0, "Cutting a generated tree must schedule its complete crown decay")
 	for record: Dictionary in data.decay.values():
 		expect(record.deadline >= 30 and record.deadline <= 90, "Decay must use saved 30-90s deadlines")
 	var leaf: Vector3i = data.decay.keys()[0]
@@ -166,9 +174,10 @@ func check_game() -> void:
 	world.update_build_preview()
 	expect(world.target_cell.y != -1000, "Existing ground must be selectable")
 	var cell: Vector3i = world.target_cell
+	var initial_dirt: int=world.inventory.count_item("dirt")
 	world.mining_held = true
 	world.update_mining(4.51)
-	expect(world.model.kind_at(cell) == "air" and world.inventory.count_item("dirt") == 32, "Mining must create a world drop instead of directly changing inventory")
+	expect(world.model.kind_at(cell) == "air" and world.inventory.count_item("dirt") == initial_dirt, "Mining must create a world drop instead of directly changing inventory")
 	var drop_id: String = ""
 	for id: String in world.model.entities:
 		if id.begins_with("drop_"):
@@ -179,7 +188,7 @@ func check_game() -> void:
 		world.entity_system.simulate_drops(1.0 / 60.0)
 	world.model.advance(0.6)
 	world.entity_system.collect(world.model.entities[drop_id].position, world.inventory)
-	expect(world.inventory.count_item("dirt") == 33 and not world.model.entities.has(drop_id), "Nearby pickup must transfer exactly once into inventory")
+	expect(world.inventory.count_item("dirt") == initial_dirt+1 and not world.model.entities.has(drop_id), "Nearby pickup must transfer exactly once into inventory")
 	# All constructed blocks, trees and ground use batched chunk geometry.
 	world.model.set_block(Vector3i(2, 0, 10), "workbench")
 	world.streamer.build_now(Vector3i.ZERO)

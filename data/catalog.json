@@ -18,7 +18,7 @@
     },
     "fence": {
       "id": 15,
-      "name": "Tr\u00e4staket",
+      "name": "Trästaket",
       "color": "a77b49",
       "shape": "fence",
       "tool": "axe",
@@ -26,7 +26,7 @@
     },
     "door": {
       "id": 11,
-      "name": "D\u00f6rr",
+      "name": "Dörr",
       "color": "b98b54",
       "shape": "door",
       "tool": "axe",
@@ -34,7 +34,7 @@
     },
     "door_top": {
       "id": 12,
-      "name": "D\u00f6rr",
+      "name": "Dörr",
       "color": "b98b54",
       "shape": "door",
       "tool": "axe",
@@ -42,14 +42,14 @@
     },
     "door_open": {
       "id": 13,
-      "name": "D\u00f6rr",
+      "name": "Dörr",
       "color": "b98b54",
       "shape": "none",
       "tool": "axe"
     },
     "door_top_open": {
       "id": 14,
-      "name": "D\u00f6rr",
+      "name": "Dörr",
       "color": "b98b54",
       "shape": "none",
       "tool": "axe",
@@ -87,7 +87,7 @@
     "wood": {
       "id": 3,
       "tool_seconds": 0.7,
-      "name": "Tr\u00e4dstam",
+      "name": "Trädstam",
       "color": "986032",
       "tool": "axe"
     },
@@ -101,13 +101,13 @@
     },
     "planks": {
       "id": 5,
-      "name": "Tr\u00e4kloss",
+      "name": "Träkloss",
       "color": "bf925c",
       "tool": "axe"
     },
     "workbench": {
       "id": 6,
-      "name": "Arbetsb\u00e4nk",
+      "name": "Arbetsbänk",
       "color": "906336",
       "tool": "axe",
       "interaction": "crafting"
@@ -121,7 +121,7 @@
     },
     "soul_block": {
       "id": 9,
-      "name": "Sj\u00e4lblock",
+      "name": "Själblock",
       "color": "7634ad",
       "tool": "pickaxe"
     },
@@ -138,6 +138,99 @@
       "color": "654429",
       "tool": "shovel",
       "tool_seconds": 0.7
+    },
+    "furnace": {
+      "id": 19,
+      "name": "Stenugn",
+      "color": "737a80",
+      "tool": "pickaxe",
+      "interaction": "furnace"
+    },
+    "furnace_lit": {
+      "id": 20,
+      "name": "Stenugn",
+      "color": "737a80",
+      "tool": "pickaxe",
+      "interaction": "furnace"
+    },
+    "water_source": {
+      "id": 21,
+      "name": "Vatten",
+      "color": "377ea7",
+      "shape": "liquid",
+      "breakable": false,
+      "drop": false
+    },
+    "water_flow_3": {
+      "id": 22,
+      "name": "Vatten",
+      "color": "377ea7",
+      "shape": "liquid",
+      "breakable": false,
+      "drop": false
+    },
+    "water_flow_2": {
+      "id": 23,
+      "name": "Vatten",
+      "color": "377ea7",
+      "shape": "liquid",
+      "breakable": false,
+      "drop": false
+    },
+    "water_flow_1": {
+      "id": 24,
+      "name": "Vatten",
+      "color": "377ea7",
+      "shape": "liquid",
+      "breakable": false,
+      "drop": false
+    },
+    "water_fall_4": {
+      "id": 25,
+      "name": "Vatten",
+      "color": "377ea7",
+      "shape": "liquid",
+      "breakable": false,
+      "drop": false
+    },
+    "water_fall_3": {
+      "id": 26,
+      "name": "Vatten",
+      "color": "377ea7",
+      "shape": "liquid",
+      "breakable": false,
+      "drop": false
+    },
+    "water_fall_2": {
+      "id": 27,
+      "name": "Vatten",
+      "color": "377ea7",
+      "shape": "liquid",
+      "breakable": false,
+      "drop": false
+    },
+    "water_fall_1": {
+      "id": 28,
+      "name": "Vatten",
+      "color": "377ea7",
+      "shape": "liquid",
+      "breakable": false,
+      "drop": false
+    },
+    "sapling": {
+      "id": 29,
+      "name": "Trädplanta",
+      "color": "54843b",
+      "shape": "plant",
+      "seconds": 0.2
+    },
+    "lakebed": {
+      "id": 30,
+      "name": "Sjöbotten",
+      "color": "795237",
+      "tool": "shovel",
+      "tool_seconds": 0.7,
+      "seconds": 3.0
     }
   },
   "items": {
@@ -147,21 +240,21 @@
       "stack": 64
     },
     "fence": {
-      "name": "Tr\u00e4staket",
+      "name": "Trästaket",
       "block": "fence",
       "stack": 64
     },
     "door": {
-      "name": "D\u00f6rr",
+      "name": "Dörr",
       "block": "door",
       "stack": 64
     },
     "raw_chicken": {
-      "name": "R\u00e5 kyckling",
+      "name": "Rå kyckling",
       "stack": 64
     },
     "egg": {
-      "name": "\u00c4gg",
+      "name": "Ägg",
       "stack": 64
     },
     "chest": {
@@ -170,22 +263,22 @@
       "stack": 64
     },
     "blueberry": {
-      "name": "Bl\u00e5b\u00e4r",
+      "name": "Blåbär",
       "stack": 64,
-      "description": "H\u00e5ll h\u00f6ger musknapp i tv\u00e5 sekunder f\u00f6r att \u00e4ta: +5 % m\u00e4ttnad. H\u00f6gerklicka p\u00e5 en jordyta f\u00f6r att plantera en buske."
+      "description": "Håll höger musknapp i två sekunder för att äta: +5 % mättnad. Högerklicka på en jordyta för att plantera en buske."
     },
     "soul_block": {
-      "name": "Sj\u00e4lblock",
+      "name": "Själblock",
       "block": "soul_block",
       "stack": 64
     },
     "soul_remnant": {
-      "name": "Sj\u00e4lsrest",
+      "name": "Själsrest",
       "stack": 64,
-      "description": "En gl\u00f6dande rest av magin som h\u00f6ll zombien vid liv. Sparas till framtida f\u00f6rtrollningar och utrustningsf\u00f6rb\u00e4ttringar."
+      "description": "En glödande rest av magin som höll zombien vid liv. Sparas till framtida förtrollningar och utrustningsförbättringar."
     },
     "stone_sword": {
-      "name": "Stensv\u00e4rd",
+      "name": "Stensvärd",
       "tool": true,
       "stack": 1,
       "max_uses": 100
@@ -193,7 +286,8 @@
     "foliage": {
       "name": "Grenverk",
       "block": "foliage",
-      "stack": 64
+      "stack": 64,
+      "burn_seconds": 0.5
     },
     "bedrock": {
       "name": "Berggrund",
@@ -211,17 +305,19 @@
       "stack": 64
     },
     "wood": {
-      "name": "Tr\u00e4dstam",
+      "name": "Trädstam",
       "block": "wood",
-      "stack": 64
+      "stack": 64,
+      "burn_seconds": 12
     },
     "planks": {
-      "name": "Tr\u00e4kloss",
+      "name": "Träkloss",
       "block": "planks",
-      "stack": 64
+      "stack": 64,
+      "burn_seconds": 4
     },
     "workbench": {
-      "name": "Arbetsb\u00e4nk",
+      "name": "Arbetsbänk",
       "block": "workbench",
       "stack": 64
     },
@@ -231,8 +327,9 @@
       "stack": 64
     },
     "stick": {
-      "name": "Tr\u00e4pinne",
-      "stack": 64
+      "name": "Träpinne",
+      "stack": 64,
+      "burn_seconds": 1
     },
     "axe": {
       "name": "Yxa",
@@ -259,16 +356,55 @@
       "max_uses": 100
     },
     "grass_seed": {
-      "name": "Gr\u00e4sfr\u00f6",
+      "name": "Gräsfrö",
       "stack": 64
     },
     "grain": {
-      "name": "S\u00e4desstr\u00e5",
+      "name": "Sädesstrå",
       "stack": 64
     },
     "bread": {
-      "name": "Br\u00f6d",
+      "name": "Bröd",
+      "stack": 64,
+      "category": "food"
+    },
+    "wood_pickaxe": {
+      "name": "Gruvhacka av trä",
+      "tool": true,
+      "tool_type": "pickaxe",
+      "work_time_multiplier": 2.0,
+      "stack": 1,
+      "max_uses": 40
+    },
+    "furnace": {
+      "name": "Stenugn",
+      "block": "furnace",
       "stack": 64
+    },
+    "coal": {
+      "name": "Kolbit",
+      "stack": 64,
+      "burn_seconds": 16
+    },
+    "bucket": {
+      "name": "Trähink",
+      "stack": 1,
+      "category": "tools"
+    },
+    "water_bucket": {
+      "name": "Trähink med vatten",
+      "stack": 1,
+      "category": "tools"
+    },
+    "sapling": {
+      "name": "Trädplanta",
+      "stack": 64,
+      "block": "sapling"
+    },
+    "boat": {
+      "name": "Roddbåt",
+      "stack": 1,
+      "category": "tools"
     }
   },
   "recipes": [
@@ -362,6 +498,40 @@
       "pattern": "grain,grain,grain",
       "kind": "bread",
       "count": 1
+    },
+    {
+      "width": 3,
+      "pattern": "planks,planks,planks/.,stick,./.,stick,.",
+      "kind": "wood_pickaxe",
+      "count": 1
+    },
+    {
+      "width": 3,
+      "pattern": "stone,stone,stone/stone,.,stone/stone,stone,stone",
+      "kind": "furnace",
+      "count": 1
+    },
+    {
+      "width": 2,
+      "pattern": "coal/stick",
+      "kind": "torch",
+      "count": 4,
+      "offset_x_by_width": {
+        "2": 0,
+        "3": 1
+      }
+    },
+    {
+      "width": 3,
+      "pattern": "planks,.,planks/.,planks,.",
+      "kind": "bucket",
+      "count": 1
+    },
+    {
+      "width": 3,
+      "pattern": "planks,.,planks/planks,planks,planks",
+      "kind": "boat",
+      "count": 1
     }
   ],
   "actors": {
@@ -392,6 +562,19 @@
     },
     "crop": {
       "active_distance": 64
+    },
+    "sapling": {
+      "active_distance": 48
+    },
+    "boat": {
+      "active_distance": 96
+    }
+  },
+  "smelting": {
+    "wood": {
+      "result": "coal",
+      "count": 1,
+      "seconds": 3.0
     }
   }
 }

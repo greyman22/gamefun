@@ -26,7 +26,7 @@ func changed(_cell: Vector3i) -> void:
 	elapsed = 1
 
 func build_now(key: Vector3i) -> void:
-	var job := Job.new(model.seed_value, key, model.worker_edits(key), base_cache, model.worker_chest_pairs(key))
+	var job := Job.new(model.seed_value, key, model.worker_edits(key), base_cache, model.worker_chest_pairs(key),model.generator.version)
 	job.run()
 	apply(key, job.result, int(model.revisions.get(key, 0)), true)
 
@@ -89,7 +89,7 @@ func tick(position: Vector3, delta: float) -> void:
 	for key: Vector3i in order:
 		if tasks.has(key) or (chunks.has(key) and chunks[key].revision == int(model.revisions.get(key, 0))):
 			continue
-		var job := Job.new(model.seed_value, key, model.worker_edits(key), base_cache, model.worker_chest_pairs(key))
+		var job := Job.new(model.seed_value, key, model.worker_edits(key), base_cache, model.worker_chest_pairs(key),model.generator.version)
 		var id: int = WorkerThreadPool.add_task(job.run, false, "Voxel chunk")
 		tasks[key] = {"id": id, "job": job, "revision": int(model.revisions.get(key, 0))}
 		if tasks.size() >= max_tasks:

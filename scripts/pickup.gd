@@ -15,7 +15,17 @@ func configure(kind: String) -> void:
 		scale=Vector3.ONE*4.0
 	if kind in ["stick","foliage","wood","dirt","stone"]:
 		scale = Vector3.ONE*1.25
-	if kind == "gate":
+	if kind=="furnace":
+		Visuals.furnace_model(self,0.25)
+	elif kind=="boat":
+		Visuals.boat_model(self,0.12)
+	elif kind=="sapling":
+		Visuals.sapling_model(self)
+	elif kind in ["bucket","water_bucket"]:
+		Visuals.bucket_model(self,kind=="water_bucket")
+	elif kind=="coal":
+		Visuals.coal_model(self)
+	elif kind == "gate":
 		Visuals.gate_model(self,0.2)
 	elif kind == "fence":
 		Visuals.fence_model(self,0.2)

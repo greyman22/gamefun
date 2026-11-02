@@ -3,7 +3,7 @@ const Space = preload("res://scripts/core/actor_space.gd")
 const Registry = preload("res://scripts/core/registry.gd")
 const GROWTH: float = 120
 const LOVE_TIME: float = 60
-const RADIUS: float = 15
+const RADIUS: float = 20
 
 static func interval(mode: String) -> float:
 	return 120.0 if mode == "debug" else randf_range(180, 300)
@@ -35,7 +35,7 @@ static func ensure_nearby(model: RefCounted, position: Vector3, mode: String) ->
 				var spawn := point + Vector3(candidate % 7 - 3 + 0.5, 0, candidate / 7 - 3 + 0.5)
 				spawn.y = model.generator.height(floori(spawn.x), floori(spawn.z))
 				var cell := Vector3i(spawn.floor())
-				if Registry.cube(model.block(cell + Vector3i.DOWN)) and not Registry.cube(model.block(cell)) and not Registry.cube(model.block(cell + Vector3i.UP)):
+				if model.kind_at(cell)=="air" and Registry.cube(model.block(cell + Vector3i.DOWN)) and not Registry.cube(model.block(cell)) and not Registry.cube(model.block(cell + Vector3i.UP)):
 					create(model, "hen_%s_%d" % [key, spawned], spawn, point, mode)
 					spawned += 1
 					if spawned == count:
@@ -137,5 +137,5 @@ static func tick(system: Node, delta: float) -> void:
 				else:
 					hen.birth_at = 0.0
 					other.birth_at = 0.0
-		system.active[id].simulate(delta, system.soul_lure)
+		system.active[id].simulate(delta, system.seed_lure)
 		hen.position = system.active[id].position

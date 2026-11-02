@@ -46,7 +46,7 @@ func run() -> void:
 	world.set_process(false)
 	world.set_physics_process(false)
 	world.player.set_physics_process(false)
-	expect(world.game_mode == "play" and world.inventory.count_item("dirt") == 32 and world.inventory.count_item("pickaxe") == 0, "Play mode must retain normal starter inventory")
+	expect(world.game_mode == "play" and world.inventory.slots.all(func(slot: Dictionary) -> bool: return slot.count==0) and world.inventory.count_item("pickaxe") == 0, "Play mode starts with completely empty inventory")
 	world.new_world(42, "debug")
 	for kind: String in Registry.catalog.items:
 		expect(world.inventory.count_item(kind) == 0 if kind == "bedrock" else world.inventory.count_item(kind) > 0, "Debug inventory filters bedrock and supplies " + kind)

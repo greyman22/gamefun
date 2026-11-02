@@ -17,6 +17,11 @@ func configure(data: RefCounted) -> void:
 func changed(_cell: Vector3i) -> void:
 	columns.clear()
 
+func blocks_daylight(value: int) -> bool:
+	# Door windows pass daylight while the closed leaf still blocks bodies
+	# and navigation. Keep the lower wooden panel opaque.
+	return Registry.cube(value) and Registry.kind(value)!="door_top"
+
 func roof(x: int, z: int) -> int:
 	var column := Vector2i(x, z)
 	if columns.has(column):
@@ -42,7 +47,7 @@ func roof(x: int, z: int) -> int:
 					value = model.generator.tree_kind(cell, tree)
 					if value != 0:
 						break
-		if Registry.cube(value):
+		if blocks_daylight(value):
 			highest = y
 			break
 	if columns.size() > 2048:
@@ -67,7 +72,7 @@ func exposure(position: Vector3) -> float:
 			continue
 		for direction: Vector3i in NEIGHBOURS:
 			var next: Vector3i = cell + direction
-			if not distances.has(next) and not Registry.cube(model.block(next)):
+			if not distances.has(next) and not blocks_daylight(model.block(next)):
 				distances[next] = distance + 1
 				queue.append(next)
 	return 0.0

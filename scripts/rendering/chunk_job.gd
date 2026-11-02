@@ -4,6 +4,7 @@ const Generator = preload("res://scripts/core/generator.gd")
 const Registry = preload("res://scripts/core/registry.gd")
 const SIZE: int = 16
 var chest_pairs: Dictionary = {}
+var generation_version: int=Generator.VERSION
 var seed_value: int
 var chunk_key: Vector3i
 var edits: Dictionary
@@ -12,7 +13,8 @@ var generated: Dictionary = {}
 var generator: RefCounted
 var shared_cache: RefCounted
 
-func _init(world_seed: int, key: Vector3i, changes: Dictionary, base_cache: RefCounted = null, links: Dictionary = {}) -> void:
+func _init(world_seed: int, key: Vector3i, changes: Dictionary, base_cache: RefCounted = null, links: Dictionary = {}, version: int=Generator.VERSION) -> void:
+	generation_version=version
 	chest_pairs = links
 	seed_value = world_seed
 	chunk_key = key
@@ -30,7 +32,7 @@ func block(cell: Vector3i) -> int:
 	return generated[key].decode_u16(offset * 2)
 
 func run() -> void:
-	generator = Generator.new(seed_value)
+	generator = Generator.new(seed_value,generation_version)
 	var padded := PackedInt32Array()
 	padded.resize(18 * 18 * 18)
 	var origin := chunk_key * SIZE

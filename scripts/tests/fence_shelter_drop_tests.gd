@@ -88,10 +88,10 @@ func run() -> void:
 	world.entity_system.activate("guard",world.model.entities.guard)
 	Hens.create(world.model,"lured",outside+Vector3.RIGHT,outside,"debug")
 	world.entity_system.activate("lured",world.model.entities.lured)
-	world.entity_system.soul_lure=inside
+	world.entity_system.seed_lure=inside
 	world.entity_system.simulate_actors(0,world.player)
 	expect(world.entity_system.active.guard.behavior!="chase" and not world.entity_system.active.guard.can_hit(world.player),"Existing chase stops and no attack inside sealed house")
-	expect(not world.entity_system.active.lured.following_soul,"Soul attraction stops inside sealed house")
+	expect(not world.entity_system.active.lured.following_seeds,"Soul attraction stops inside sealed house")
 	Doors.toggle(world.entity_system,Vector3i(3,35,7))
 	expect(access.allowed(outside,inside),"Open door restores access immediately")
 	Doors.remove(world.entity_system,Vector3i(3,35,7))
@@ -104,10 +104,10 @@ func run() -> void:
 	expect(access.allowed(outside,inside),"Fence enclosure deliberately preserves attraction")
 	world.entity_system.active.guard.position=Vector3(3.5,35,8.3)
 	world.player.position=Vector3(3.5,35,6.5)
-	world.entity_system.soul_lure=world.player.position
+	world.entity_system.seed_lure=world.player.position
 	world.entity_system.simulate_actors(0,world.player)
 	expect(world.entity_system.active.guard.behavior=="chase" and world.entity_system.active.guard.can_hit(world.player),"Zombie stays attracted and can reach player too near fence")
-	expect(world.entity_system.active.lured.following_soul,"Hens remain attracted through fence")
+	expect(world.entity_system.active.lured.following_seeds,"Hens remain attracted through fence")
 	world.player.vitals.protection=0
 	var before_health: float = world.player.vitals.health
 	for frame in range(120):

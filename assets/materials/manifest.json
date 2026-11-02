@@ -1,4 +1,14 @@
 {
+  "furnace": [
+    "furnace",
+    "stone",
+    "stone"
+  ],
+  "furnace_lit": [
+    "furnace_lit",
+    "stone",
+    "stone"
+  ],
   "farmland": [
     "earth",
     "farmland",
@@ -93,5 +103,10 @@
     "planks",
     "planks",
     "planks"
+  ],
+  "lakebed": [
+    "earth",
+    "earth",
+    "earth"
   ]
 }
