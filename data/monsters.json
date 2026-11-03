@@ -1,7 +1,32 @@
 [
-  {"type":"zombie", "name":"Zombie", "symbol":"Z", "color":"78be4a"},
-  {"type":"reserved_2", "name":"Kommande monster", "symbol":"?", "color":"aaaaaa"},
-  {"type":"reserved_3", "name":"Kommande monster", "symbol":"?", "color":"aaaaaa"},
-  {"type":"reserved_4", "name":"Kommande monster", "symbol":"?", "color":"aaaaaa"},
-  {"type":"reserved_5", "name":"Kommande monster", "symbol":"?", "color":"aaaaaa"}
+  {
+    "type": "zombie",
+    "name": "Zombie",
+    "symbol": "Z",
+    "color": "78be4a"
+  },
+  {
+    "type": "skeleton",
+    "name": "Skelett",
+    "symbol": "☠",
+    "color": "e8e4d6"
+  },
+  {
+    "type": "reserved_3",
+    "name": "Kommande monster",
+    "symbol": "?",
+    "color": "aaaaaa"
+  },
+  {
+    "type": "reserved_4",
+    "name": "Kommande monster",
+    "symbol": "?",
+    "color": "aaaaaa"
+  },
+  {
+    "type": "reserved_5",
+    "name": "Kommande monster",
+    "symbol": "?",
+    "color": "aaaaaa"
+  }
 ]

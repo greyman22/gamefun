@@ -1,5 +1,6 @@
 extends RefCounted
 
+const StructureTrees=preload("res://scripts/core/structure_trees.gd")
 const Registry = preload("res://scripts/core/registry.gd")
 var data: RefCounted
 var touched: Dictionary = {}
@@ -41,6 +42,7 @@ func place(world: RefCounted, debug_mode: bool) -> Dictionary:
 	# Match the median ground instead of raising the entire house to the highest corner.
 	var floor_y: int = maxi(0, heights[heights.size() / 2] - 1)
 	var base := Vector3i(best.x, floor_y, best.y)
+	StructureTrees.clear_area(data,best+Vector2i(-12,-9),best+Vector2i(13,23),write)
 	for x in range(-12, 13):
 		for z in range(-9, 23):
 			var ground: int = data.generator.height(best.x + x, best.y + z)
@@ -87,7 +89,7 @@ func place(world: RefCounted, debug_mode: bool) -> Dictionary:
 			var adjacent: Vector3i = key + offset
 			data.revisions[adjacent] = int(data.revisions.get(adjacent, 0)) + 1
 		data.block_changed.emit(key * 16)
-	var record: Dictionary = {"base": base, "marker": Vector3(base) + Vector3(0.5, 14, 0.5), "spawn_distance": distance, "wander_radius": 15, "placement_version": 2}
+	var record: Dictionary = {"base": base, "marker": Vector3(base) + Vector3(0.5, 14, 0.5), "spawn_distance": distance, "wander_radius": 15, "placement_version": 3}
 	data.landmarks["zombie_house"] = record
 	ensure_zombies(data)
 	return record

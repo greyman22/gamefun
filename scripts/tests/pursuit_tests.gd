@@ -18,9 +18,9 @@ func run() -> void:
 	for kind in ["stone_sword", "pickaxe", "axe", "shovel"]:
 		expect(Registry.stack_limit(kind) == 1, "Each tool must occupy its own slot")
 	var bag := Inventory.new()
-	expect(bag.add_items("stone_sword", 2) and bag.slots[24].count == 1 and bag.slots[25].count == 1, "Two swords must occupy two slots")
-	expect(not bag.move_stack(24, 25), "Swords must not merge into a stack")
-	expect(bag.add_items("dirt", 64) and bag.slots[26].count == 64, "Materials must retain their 64-item stacks")
+	expect(bag.add_items("stone_sword", 2) and bag.slots[27].count == 1 and bag.slots[28].count == 1, "Two swords must occupy two slots")
+	expect(not bag.move_stack(27, 28), "Swords must not merge into a stack")
+	expect(bag.add_items("dirt", 64) and bag.slots[29].count == 64, "Materials must retain their 64-item stacks")
 	var world = load("res://scripts/world.gd").new()
 	world.testing = true
 	root.add_child(world)
@@ -28,26 +28,30 @@ func run() -> void:
 	world.set_process(false)
 	world.set_physics_process(false)
 	world.player.set_physics_process(false)
+	for x in range(-2,25):
+		for z in range(7,15):
+			for y in range(-1,7):
+				world.model.set_block(Vector3i(x,y,z),"dirt" if y==-1 else "air")
 	var zombie := Zombie.new()
 	var record: Dictionary = {"position": Vector3(0.5, 0, 10.5), "home": Vector3(0.5, 0, 10.5), "spawn_position": Vector3(0.5, 0, 10.5), "state": {}}
 	zombie.configure(world.model, record)
 	zombie.position = record.position
 	root.add_child(zombie)
 	world.player.position = zombie.position + Vector3(10.1, 0, 0)
-	zombie.update_behavior(0.016, world.player)
+	zombie.update_behavior(0.3, world.player)
 	expect(zombie.behavior == "wander", "A zombie must not notice player outside ten metres")
 	world.player.position = zombie.position + Vector3(9.9, 0, 0)
-	zombie.update_behavior(0.016, world.player)
+	zombie.update_behavior(0.3, world.player)
 	expect(zombie.behavior == "chase", "Zombie must start pursuit within ten metres")
 	world.player.position = zombie.position + Vector3(15, 0, 0)
-	zombie.update_behavior(0.016, world.player)
+	zombie.update_behavior(0.3, world.player)
 	expect(zombie.behavior == "chase", "Acquired pursuit must continue between ten and twenty metres")
 	var before: Vector3 = zombie.position
 	for frame in range(60):
 		zombie.simulate(1.0 / 60.0, world.player)
-	expect(absf(zombie.position.distance_to(before) - 5.0 / 3.0) < 0.15 and Zombie.SPEED == world.player.SPEED / 3.0, "Zombie must walk at one third player speed")
+	expect(absf(zombie.position.distance_to(before) - world.player.SPEED / 3.0) < 0.15 and Zombie.SPEED == world.player.SPEED / 3.0, "Zombie must walk at one third player speed")
 	world.player.position = zombie.position + Vector3(20.1, 0, 0)
-	zombie.update_behavior(0.016, world.player)
+	zombie.update_behavior(0.3, world.player)
 	expect(zombie.behavior == "return", "Pursuit must break beyond twenty metres")
 	world.player.position = Vector3(30, 0, 10.5)
 	var returned: bool = false
@@ -108,7 +112,7 @@ func run() -> void:
 	# Existing stacks are migrated without losing tools.
 	world.new_world(42, "debug")
 	var legacy: Dictionary = world.snapshot()
-	legacy.inventory[24] = {"kind": "stone_sword", "count": 3}
+	legacy.inventory[27] = {"kind": "stone_sword", "count": 3}
 	expect(world.restore_snapshot(legacy) and world.inventory.count_item("stone_sword") == 3, "Legacy sword stack must split into separate inventory slots")
 	for slot in world.inventory.slots:
 		expect(slot.count <= Registry.stack_limit(slot.kind), "Every restored slot must respect its new tool stack limit")
@@ -121,8 +125,8 @@ func run() -> void:
 	for entity: Dictionary in world.model.entities.values():
 		if entity.type == "pickup" and entity.kind == "axe":
 			axes += int(entity.get("count", 1))
-	expect(axes == 2048, "Overflowing legacy tool stacks must become world pickups without loss")
-	world.inventory.slots[24] = {"kind": "stone_sword", "count": 1}
+	expect(axes == 36*64, "Overflowing legacy tool stacks must become world pickups without loss")
+	world.inventory.slots[27] = {"kind": "stone_sword", "count": 1}
 	world.update_counter()
 	expect(world.hotbar_slots[0].count_label.text.is_empty(), "Tool slots must hide the count indicator")
 	if "--capture-ui" in OS.get_cmdline_user_args():

@@ -235,6 +235,7 @@ func handle_event(event: InputEvent) -> bool:
 	return false
 
 func close() -> bool:
+	game.drop_outside_cursor(self)
 	if not cursor.return_all():
 		caption.text = "Placera föremålet du håller innan du stänger."
 		refresh()

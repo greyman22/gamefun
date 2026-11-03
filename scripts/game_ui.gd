@@ -1,4 +1,5 @@
 extends Node3D
+const PerfAnim = preload("res://scripts/core/performance_log.gd")
 
 const Registry = preload("res://scripts/core/registry.gd")
 const InventoryScript = preload("res://scripts/inventory.gd")
@@ -17,6 +18,12 @@ var cursor_durability: ProgressBar
 var result_press_position := Vector2.ZERO
 var result_drag_moved: bool = false
 var template_buttons: Array[Dictionary] = []
+var debug_catalog: bool=false
+var debug_catalog_button: Button
+var debug_catalog_grid: GridContainer
+var debug_catalog_entries: Array[Dictionary]=[]
+var recipe_help: Label
+var recipe_heading: Label
 var recipe_search: LineEdit
 var recipe_scroll: ScrollContainer
 var recipe_empty: Label
@@ -56,6 +63,8 @@ var move_source: int = -1
 var held_arm_upper: Node3D
 var held_arm_fore: Node3D
 var arm_shoulder_position := Vector3.ZERO
+var held_bow: Node3D
+var held_bow_arrow: Node3D
 var held_item: Node3D
 var held_kind: String = "uninitialized"
 var active_tool: String = "hand"
@@ -411,7 +420,15 @@ func build_recipe_list(parent: Control) -> void:
 	body.size_flags_horizontal=Control.SIZE_EXPAND_FILL
 	body.add_theme_constant_override("separation",8)
 	layout.add_child(body)
-	body.add_child(label("RECEPT",20))
+	var heading:=HBoxContainer.new()
+	body.add_child(heading)
+	recipe_heading=label("RECEPT",20)
+	recipe_heading.size_flags_horizontal=Control.SIZE_EXPAND_FILL
+	heading.add_child(recipe_heading)
+	debug_catalog_button=Button.new()
+	debug_catalog_button.text="Debugmaterial"
+	debug_catalog_button.pressed.connect(toggle_debug_catalog)
+	heading.add_child(debug_catalog_button)
 	var filters:=HBoxContainer.new()
 	filters.add_theme_constant_override("separation",8)
 	body.add_child(filters)
@@ -439,7 +456,45 @@ func build_recipe_list(parent: Control) -> void:
 	recipe_grid.size_flags_horizontal=Control.SIZE_EXPAND_FILL
 	recipe_grid.add_theme_constant_override("h_separation",8)
 	recipe_grid.add_theme_constant_override("v_separation",8)
-	recipe_scroll.add_child(recipe_grid)
+	var grids:=VBoxContainer.new()
+	grids.size_flags_horizontal=Control.SIZE_EXPAND_FILL
+	recipe_scroll.add_child(grids)
+	grids.add_child(recipe_grid)
+	debug_catalog_grid=GridContainer.new()
+	debug_catalog_grid.columns=4
+	debug_catalog_grid.add_theme_constant_override("h_separation",8)
+	debug_catalog_grid.add_theme_constant_override("v_separation",8)
+	grids.add_child(debug_catalog_grid)
+	debug_catalog_grid.hide()
+	for kind: String in Registry.catalog.items:
+		if kind=="bedrock":
+			continue
+		var tile:=Button.new()
+		tile.custom_minimum_size=Vector2(96,80)
+		tile.tooltip_text=Registry.label(kind)+" — dra till inventariet"
+		var picture:=TextureRect.new()
+		picture.texture=item_icons.get(kind)
+		picture.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+		picture.offset_left=14
+		picture.offset_right=-14
+		picture.offset_top=7
+		picture.offset_bottom=-12
+		picture.expand_mode=TextureRect.EXPAND_IGNORE_SIZE
+		picture.stretch_mode=TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+		picture.mouse_filter=Control.MOUSE_FILTER_IGNORE
+		tile.add_child(picture)
+		var amount:=label(str(Registry.stack_limit(kind)) if not Registry.tool(kind) else "",14)
+		amount.set_anchors_and_offsets_preset(Control.PRESET_BOTTOM_RIGHT)
+		amount.offset_left=-30
+		amount.offset_top=-23
+		amount.mouse_filter=Control.MOUSE_FILTER_IGNORE
+		tile.add_child(amount)
+		tile.gui_input.connect(func(event: InputEvent) -> void:
+			if event is InputEventMouseButton and event.pressed and event.button_index==MOUSE_BUTTON_LEFT:
+				take_debug_material(kind)
+				tile.accept_event())
+		debug_catalog_grid.add_child(tile)
+		debug_catalog_entries.append({"kind":kind,"button":tile})
 	var seen: Dictionary={}
 	for recipe: Dictionary in Registry.catalog.recipes:
 		if seen.has(recipe.kind):
@@ -474,7 +529,8 @@ func build_recipe_list(parent: Control) -> void:
 	recipe_empty.autowrap_mode=TextServer.AUTOWRAP_WORD_SMART
 	body.add_child(recipe_empty)
 	recipe_empty.hide()
-	body.add_child(label("H\u00e5ll musen \u00f6ver en ikon f\u00f6r namn och ingredienser",12))
+	recipe_help=label("Håll musen över en ikon för namn och ingredienser",12)
+	body.add_child(recipe_help)
 
 func recipe_category_for(kind: String) -> String:
 	if Registry.tool(kind):
@@ -505,6 +561,29 @@ func apply_recipe_filters(reset_scroll: bool=false, query: Variant=null) -> void
 	if not is_instance_valid(recipe_search) or not is_instance_valid(recipe_empty):
 		return
 	var term: String=(recipe_search.text if query==null else str(query)).strip_edges().to_lower()
+	debug_catalog_button.visible=get("game_mode")=="debug"
+	if get("game_mode")!="debug":
+		debug_catalog=false
+	recipe_grid.visible=not debug_catalog
+	debug_catalog_grid.visible=debug_catalog
+	recipe_heading.text="DEBUGMATERIAL" if debug_catalog else "RECEPT"
+	recipe_search.placeholder_text="Sök föremål..." if debug_catalog else "Sök recept..."
+	debug_catalog_button.text="Visa recept" if debug_catalog else "Debugmaterial"
+	if is_instance_valid(recipe_help):
+		recipe_help.text="Dra en ikon till valfri inventarieruta" if debug_catalog else "Håll musen över en ikon för namn och ingredienser"
+	recipe_available.visible=not debug_catalog
+	for tab in recipe_tabs:
+		tab.visible=not debug_catalog
+	if debug_catalog:
+		var matching: int=0
+		for entry: Dictionary in debug_catalog_entries:
+			entry.button.visible=term.is_empty() or Registry.label(entry.kind).to_lower().contains(term)
+			if entry.button.visible:
+				matching+=1
+		recipe_empty.visible=matching==0
+		if reset_scroll:
+			recipe_scroll.scroll_vertical=0
+		return
 	var count: int=0
 	for entry: Dictionary in template_buttons:
 		var matches: bool=(term.is_empty() or Registry.label(entry.recipe.kind).to_lower().contains(term)) and recipe_matches_category(entry.recipe.kind)
@@ -713,7 +792,16 @@ func update_held_item() -> void:
 		held_arm_fore = null
 		swing_phase = 0
 		swing_blend = 0
-		if kind=="furnace":
+		if kind in ["cotton","thread","feather","cotton_shoot"]:
+			ItemVisuals.fiber_item_model(held_item,kind)
+		elif kind=="bow":
+			held_bow=ItemVisuals.bow_model(held_item,1)
+			held_bow_arrow=ItemVisuals.arrow_model(held_item,0.7)
+		elif kind=="arrow":
+			ItemVisuals.arrow_model(held_item,0.6)
+		elif kind=="bone":
+			ItemVisuals.bone_model(held_item)
+		elif kind=="furnace":
 			ItemVisuals.furnace_model(held_item)
 		elif kind=="boat":
 			ItemVisuals.boat_model(held_item,0.12)
@@ -733,6 +821,8 @@ func update_held_item() -> void:
 			ItemVisuals.plank_model(held_item)
 		elif kind == "door":
 			ItemVisuals.door_model(held_item,0.13)
+		elif kind=="raw_mutton":
+			ItemVisuals.mutton_model(held_item)
 		elif kind == "raw_chicken":
 			ItemVisuals.raw_chicken_model(held_item)
 		elif kind == "egg":
@@ -778,7 +868,7 @@ func update_held_item() -> void:
 		arm_skin.roughness = 0.9
 		held_arm_upper = box(held_item,Vector3.ZERO,Vector3(0.075,1,0.07),arm_skin)
 		held_arm_fore = box(held_item,Vector3.ZERO,Vector3(0.065,1,0.06),arm_skin)
-		if kind != "":
+		if kind != "" and kind!="bow":
 			box(held_item, Vector3(0, -0.085, 0.015), Vector3(0.085, 0.075, 0.075), arm_skin)
 		for part in held_item.find_children("*", "MeshInstance3D", true, false):
 			(part as MeshInstance3D).cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
@@ -811,7 +901,10 @@ func pose_arm_segment(segment: Node3D, start: Vector3, finish: Vector3) -> void:
 	var camera_pose := Transform3D(Basis(Quaternion(Vector3.UP,direction.normalized())).scaled(Vector3(1,direction.length(),1)),(start+finish)*0.5)
 	segment.transform = held_item.transform.affine_inverse()*camera_pose
 
-func apply_tool_action(progress: float, blend: float = 1.0) -> void:
+func _measuredapply_tool_action(progress: float, blend: float = 1.0) -> void:
+	if selected_kind()=="bow":
+		pose_player_bow()
+		return
 	var sweep: float = clampf((progress-0.08)/0.84,0,1)
 	var extension: float = (1.0-cos(sweep*TAU))*0.5*blend
 	var grip_local := Vector3(0,-0.075,0)
@@ -839,6 +932,9 @@ func reset_held_pose() -> void:
 func update_hand_animation(delta: float, working: bool) -> void:
 	if not is_instance_valid(held_item):
 		return
+	if selected_kind()=="bow":
+		pose_player_bow()
+		return
 	swing_blend = move_toward(swing_blend,1.0 if working else 0.0,delta*7.0)
 	if working or swing_blend>0:
 		swing_phase += delta*11.0
@@ -849,6 +945,8 @@ func update_hand_animation(delta: float, working: bool) -> void:
 
 func toggle_inventory(workbench: bool = false) -> void:
 	stack_cursor.bind(inventory, crafting)
+	if player.inventory_open:
+		call("drop_outside_cursor",inventory_panel)
 	if player.inventory_open and not stack_cursor.return_all():
 		crafting_status.text = "Materialen får inte plats.\nFrigör plats innan du stänger."
 		move_source = -1
@@ -879,3 +977,44 @@ func reset_mining() -> void:
 	mining_cell = Vector3i(0, -100, 0)
 	mining_bar.visible = false
 	mining_label.text = ""
+
+func apply_tool_action(progress: float, blend: float = 1.0) -> void:
+	var stamp: int=PerfAnim.begin()
+	_measuredapply_tool_action(progress, blend)
+	PerfAnim.finish("tool_animation",stamp)
+
+func toggle_debug_catalog() -> void:
+	if get("game_mode")!="debug":
+		return
+	debug_catalog=not debug_catalog
+	apply_recipe_filters(true)
+
+func take_debug_material(kind: String) -> void:
+	if get("game_mode")!="debug" or not player.inventory_open or not Registry.catalog.items.has(kind) or kind=="bedrock":
+		return
+	if stack_cursor.held.count>0:
+		crafting_status.text="Placera föremålen du håller först."
+		return
+	stack_cursor.bind(inventory,crafting)
+	stack_cursor.cancel_paint()
+	stack_cursor.held=Registry.stack(kind,Registry.stack_limit(kind))
+	stack_cursor.left_down=true
+	update_counter()
+
+# Bow and string move independently: the arrow stays parallel to the sight line.
+func pose_player_bow() -> void:
+	if not is_instance_valid(held_bow):
+		return
+	var charge: float=get("bow_charge")
+	var drawing: bool=get("bow_drawing")
+	held_item.transform=Transform3D(Basis.IDENTITY,Vector3(0.22,-0.13,-0.65).lerp(Vector3(0.14,-0.04,-0.85),charge))
+	held_bow.rotation=Vector3(0,1.0,-0.06)
+	ItemVisuals.bow_draw(held_bow,charge)
+	held_bow_arrow.visible=drawing
+	held_bow_arrow.position=Vector3(-0.03,0.045,0.1+charge*0.15)
+	held_bow_arrow.quaternion=Quaternion(Vector3.FORWARD,(Vector3(0,0,-10)-held_item.position-held_bow_arrow.position).normalized())
+	var grip: Vector3=held_item.position+held_bow.basis*Vector3(0.14,-0.045,0.025)
+	pose_arm_segment(held_arm_upper,camera_point(Vector2(1.08,1.3),0.35),grip)
+	pose_arm_segment(held_arm_fore,camera_point(Vector2(0.9,1.2),0.3),held_item.position+Vector3(0.04,-0.07,0.1+charge*0.15))
+	held_arm_upper.visible=true
+	held_arm_fore.visible=drawing

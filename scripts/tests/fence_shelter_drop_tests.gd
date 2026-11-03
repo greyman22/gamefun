@@ -89,9 +89,11 @@ func run() -> void:
 	Hens.create(world.model,"lured",outside+Vector3.RIGHT,outside,"debug")
 	world.entity_system.activate("lured",world.model.entities.lured)
 	world.entity_system.seed_lure=inside
-	world.entity_system.simulate_actors(0,world.player)
+	for frame in range(60):
+		world.model.game_time+=1.0/60
+		world.entity_system.simulate_actors(1.0/60,world.player)
 	expect(world.entity_system.active.guard.behavior!="chase" and not world.entity_system.active.guard.can_hit(world.player),"Existing chase stops and no attack inside sealed house")
-	expect(not world.entity_system.active.lured.following_seeds,"Soul attraction stops inside sealed house")
+	expect(not world.entity_system.active.lured.following_seeds,"Seed attraction stops inside sealed house")
 	Doors.toggle(world.entity_system,Vector3i(3,35,7))
 	expect(access.allowed(outside,inside),"Open door restores access immediately")
 	Doors.remove(world.entity_system,Vector3i(3,35,7))

@@ -39,9 +39,14 @@ func run() -> void:
 		for id in system.active:
 			relocated[id]=system.active[id].position
 		system.seed_lure=null
-		system.simulate_actors(1.0/60,player)
+		for frame in range(120):
+			model.game_time+=1.0/60
+			system.simulate_actors(1.0/60,player)
 		for id in system.active:
-			expect(system.active[id].record.home.distance_to(relocated[id])<0.1,"Lured hen adopts its new home when attraction ends")
+			expect(not system.active[id].home_pending and Hens.valid_home(model,system.active[id].record.home),"Lured hen obtains a valid new home when attraction ends")
+		for i in range(count):
+			for j in range(i+1,count):
+				expect(system.active["test_%d"%i].record.home.distance_to(system.active["test_%d"%j].record.home)>=2,"Released hens receive separated homes")
 		system.snapshot_active()
 		var restored=Data.new()
 		expect(restored.import_state(model.export_state()),"Relocated hens save/load")

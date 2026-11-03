@@ -1,4 +1,5 @@
 extends Node3D
+const PerfLog = preload("res://scripts/core/performance_log.gd")
 
 const Job = preload("res://scripts/rendering/chunk_job.gd")
 const Atlas = preload("res://scripts/rendering/atlas.gd")
@@ -16,6 +17,17 @@ var max_tasks: int = 2
 var elapsed: float = 1
 var shutting_down: bool = false
 var last_position := Vector3.ZERO
+var desired_anchor:=Vector3(INF,INF,INF)
+var desired_distance: int=-1
+var desired_dirty: bool=true
+var view_forward:=Vector3.FORWARD
+var scheduling_order: Array=[]
+var maintenance: Array=[]
+var maintenance_index: int=0
+var work_budget_usec: int=2000
+var max_installs_per_frame: int=1
+var last_installs: int=0
+var last_maintenance: int=0
 
 func configure(data: RefCounted) -> void:
 	model = data
@@ -24,6 +36,7 @@ func configure(data: RefCounted) -> void:
 
 func changed(_cell: Vector3i) -> void:
 	elapsed = 1
+	desired_dirty=true
 
 func build_now(key: Vector3i) -> void:
 	var job := Job.new(model.seed_value, key, model.worker_edits(key), base_cache, model.worker_chest_pairs(key),model.generator.version)
@@ -41,61 +54,96 @@ func warm_start(position: Vector3) -> void:
 
 func refresh_desired(position: Vector3) -> void:
 	last_position = position
+	desired_anchor=position
+	desired_distance=view_distance
+	desired_dirty=false
 	desired.clear()
 	var center: Vector3i = model.key(Vector3i(position.floor()))
 	var radius: int = ceili(float(view_distance) / 16)
 	for x in range(center.x - radius, center.x + radius + 1):
 		for z in range(center.z - radius, center.z + radius + 1):
 			var distance: float = Vector2(x * 16 + 8 - position.x, z * 16 + 8 - position.z).length()
-			if distance > view_distance + 16 or x * 16 < -Generator.HALF_WORLD or x * 16 >= Generator.HALF_WORLD or z * 16 < -Generator.HALF_WORLD or z * 16 >= Generator.HALF_WORLD:
+			if distance > view_distance + 16 or x * 16 < -model.generator.world_limit() or x * 16 >= model.generator.world_limit() or z * 16 < -model.generator.world_limit() or z * 16 >= model.generator.world_limit():
 				continue
 			var surface: int = floori(float(model.generator.height(x * 16 + 8, z * 16 + 8)) / 16)
 			var levels: Dictionary = {surface: true, surface - 1: true, surface + 1: true}
+			if model.generator.version>=4:
+				# Include intervening vertical sections on steep faces, not just
+				# the summit and the player's level. The distance budget is unchanged.
+				var low_surface: int=surface
+				var high_surface: int=surface
+				for offset in [Vector2i(-8,-8),Vector2i(8,-8),Vector2i(-8,8),Vector2i(8,8)]:
+					var corner: int=floori(float(model.generator.height(x*16+8+offset.x,z*16+8+offset.y))/16)
+					low_surface=mini(low_surface,corner)
+					high_surface=maxi(high_surface,corner)
+				for y in range(low_surface-1,high_surface+2):
+					levels[y]=true
 			if position.y < model.generator.height(int(position.x), int(position.z)) + 2 or distance < collision_distance + 16:
 				for y in range(center.y - 1, center.y + 2):
 					levels[y] = true
 			for y: int in levels:
-				if y >= -5 and y <= 4:
+				if y >= floori(float(Generator.MIN_Y)/16)-1 and y <= floori(float(model.generator.max_y())/16)+1:
 					var key := Vector3i(x, y, z)
-					desired[key] = distance + absf(y * 16 + 8 - position.y) * 0.5
-	for key: Vector3i in chunks.keys():
+					var ahead: float=Vector2(x*16+8-position.x,z*16+8-position.z).normalized().dot(Vector2(view_forward.x,view_forward.z))
+					var footing: bool=distance<32 and absi(y-center.y)<=1
+					desired[key] = distance + absf(y * 16 + 8 - position.y) * 0.5 - maxf(0,ahead)*12 - (64 if footing else 0)
+	scheduling_order=desired.keys()
+	scheduling_order.sort_custom(func(a: Vector3i,b: Vector3i) -> bool: return desired[a]<desired[b])
+	# Near collisions first; remote unloads follow. Work is consumed incrementally.
+	maintenance=scheduling_order.filter(func(key: Vector3i) -> bool: return chunks.has(key))
+	for key: Vector3i in chunks:
+		if not desired.has(key):
+			maintenance.append(key)
+	maintenance_index=0
+
+func _measuredtick(position: Vector3, delta: float, forward: Vector3=Vector3.ZERO) -> void:
+	if shutting_down:
+		return
+	last_position=position
+	if forward.length_squared()>0.01:
+		view_forward=forward.normalized()
+	elapsed+=delta
+	if elapsed>=0.4 and (desired_dirty or desired_distance!=view_distance or desired_anchor.distance_squared_to(position)>=16):
+		elapsed=0
+		refresh_desired(position)
+	var started: int=Time.get_ticks_usec()
+	last_installs=0
+	last_maintenance=0
+	# Tasks remain queued when the budget runs out; nothing is synchronously waited
+	# on unless the worker is already finished. At most one new mesh per frame.
+	var ready: Array=tasks.keys().filter(func(key: Vector3i) -> bool: return WorkerThreadPool.is_task_completed(tasks[key].id))
+	ready.sort_custom(func(a: Vector3i,b: Vector3i) -> bool: return desired.get(a,INF)<desired.get(b,INF))
+	for key: Vector3i in ready:
+		if last_installs>=max_installs_per_frame or Time.get_ticks_usec()-started>=work_budget_usec:
+			break
+		var task: Dictionary=tasks[key]
+		WorkerThreadPool.wait_for_task_completion(task.id)
+		if desired.has(key) and task.revision==int(model.revisions.get(key,0)):
+			apply(key,task.job.result,task.revision,false)
+			last_installs+=1
+		tasks.erase(key)
+	while maintenance_index<maintenance.size() and last_maintenance<4 and Time.get_ticks_usec()-started<work_budget_usec:
+		var key: Vector3i=maintenance[maintenance_index]
+		maintenance_index+=1
+		last_maintenance+=1
+		if not chunks.has(key):
+			continue
 		if not desired.has(key):
 			remove_chunk(key)
 		else:
 			update_collision(key)
-
-func tick(position: Vector3, delta: float) -> void:
-	if shutting_down:
+	if tasks.size()>=max_tasks or Time.get_ticks_usec()-started>=work_budget_usec:
 		return
-	elapsed += delta
-	if elapsed >= 0.4:
-		elapsed = 0
-		refresh_desired(position)
-	var applied: int = 0
-	for key: Vector3i in tasks.keys():
-		var task: Dictionary = tasks[key]
-		if WorkerThreadPool.is_task_completed(task.id):
-			WorkerThreadPool.wait_for_task_completion(task.id)
-			if desired.has(key) and task.revision == int(model.revisions.get(key, 0)):
-				apply(key, task.job.result, task.revision, false)
-			tasks.erase(key)
-			applied += 1
-			if applied >= 2:
-				break
-	if tasks.size() >= max_tasks:
-		return
-	var order: Array = desired.keys()
-	order.sort_custom(func(a: Vector3i, b: Vector3i) -> bool: return desired[a] < desired[b])
-	for key: Vector3i in order:
-		if tasks.has(key) or (chunks.has(key) and chunks[key].revision == int(model.revisions.get(key, 0))):
+	for key: Vector3i in scheduling_order:
+		if tasks.has(key) or (chunks.has(key) and chunks[key].revision==int(model.revisions.get(key,0))):
 			continue
-		var job := Job.new(model.seed_value, key, model.worker_edits(key), base_cache, model.worker_chest_pairs(key),model.generator.version)
-		var id: int = WorkerThreadPool.add_task(job.run, false, "Voxel chunk")
-		tasks[key] = {"id": id, "job": job, "revision": int(model.revisions.get(key, 0))}
-		if tasks.size() >= max_tasks:
+		var job:=Job.new(model.seed_value,key,model.worker_edits(key),base_cache,model.worker_chest_pairs(key),model.generator.version)
+		var id: int=WorkerThreadPool.add_task(job.run,false,"Voxel chunk")
+		tasks[key]={"id":id,"job":job,"revision":int(model.revisions.get(key,0))}
+		if tasks.size()>=max_tasks or Time.get_ticks_usec()-started>=work_budget_usec:
 			break
 
-func apply(key: Vector3i, result: Dictionary, revision: int, collision: bool) -> void:
+func _measuredapply(key: Vector3i, result: Dictionary, revision: int, collision: bool) -> void:
 	remove_chunk(key)
 	var body := StaticBody3D.new()
 	body.position = Vector3(key * 16)
@@ -127,7 +175,7 @@ func add_collision(key: Vector3i) -> void:
 		record.node.add_child(collision)
 	record.collision = true
 
-func update_collision(key: Vector3i) -> void:
+func _measuredupdate_collision(key: Vector3i) -> void:
 	var near: bool = Vector2(key.x * 16 + 8 - last_position.x, key.z * 16 + 8 - last_position.z).length() < collision_distance + 24 and absf(key.y * 16 + 8 - last_position.y) < 40
 	if near:
 		add_collision(key)
@@ -161,3 +209,18 @@ func shutdown() -> void:
 
 func _exit_tree() -> void:
 	shutdown()
+
+func tick(position: Vector3, delta: float, forward: Vector3=Vector3.ZERO) -> void:
+	var stamp: int=PerfLog.begin()
+	_measuredtick(position, delta, forward)
+	PerfLog.finish("terrain_streaming",stamp)
+
+func apply(key: Vector3i, result: Dictionary, revision: int, collision: bool) -> void:
+	var stamp: int=PerfLog.begin()
+	_measuredapply(key, result, revision, collision)
+	PerfLog.finish("terrain_mesh_install",stamp)
+
+func update_collision(key: Vector3i) -> void:
+	var stamp: int=PerfLog.begin()
+	_measuredupdate_collision(key)
+	PerfLog.finish("terrain_collision",stamp)

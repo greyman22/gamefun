@@ -15,7 +15,15 @@ func configure(kind: String) -> void:
 		scale=Vector3.ONE*4.0
 	if kind in ["stick","foliage","wood","dirt","stone"]:
 		scale = Vector3.ONE*1.25
-	if kind=="furnace":
+	if kind in ["cotton","thread","feather","cotton_shoot"]:
+		Visuals.fiber_item_model(self,kind)
+	elif kind=="bow":
+		Visuals.bow_model(self,0.6)
+	elif kind=="arrow":
+		Visuals.arrow_model(self,0.7)
+	elif kind=="bone":
+		Visuals.bone_model(self)
+	elif kind=="furnace":
 		Visuals.furnace_model(self,0.25)
 	elif kind=="boat":
 		Visuals.boat_model(self,0.12)
@@ -35,6 +43,8 @@ func configure(kind: String) -> void:
 		Visuals.plank_model(self)
 	elif kind == "door":
 		Visuals.door_model(self,0.13)
+	elif kind=="raw_mutton":
+		Visuals.mutton_model(self)
 	elif kind == "raw_chicken":
 		Visuals.raw_chicken_model(self)
 	elif kind == "egg":

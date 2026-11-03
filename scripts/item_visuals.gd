@@ -13,12 +13,38 @@ const Surfaces = preload("res://scripts/rendering/surface_textures.gd")
 const Registry = preload("res://scripts/core/registry.gd")
 
 const NAMES: Dictionary = {"stone": "Stenblock", "wood": "Trädstam", "planks": "Träkloss", "stick": "Träpinne", "workbench": "Arbetsbänk", "dirt": "Jordblock", "foliage": "Grenverk", "axe": "Yxa", "pickaxe": "Gruvhacka", "shovel": "Spade", "torch": "Fackla", "": "Hand"}
-const TOOL_KINDS: Array[String] = ["axe", "pickaxe", "shovel", "hoe", "wood_pickaxe"]
+const TOOL_KINDS: Array[String] = ["axe", "pickaxe", "shovel", "hoe", "wood_pickaxe", "stone_shears", "bow"]
 
 static func icon(kind: String) -> Texture2D:
+	if kind=="cotton_shoot":
+		return icon("sapling")
+	if kind in ["bow","arrow","bone","thread","cotton","feather"]:
+		var picture:=Image.new()
+		var art: String=""
+		match kind:
+			"bow":
+				art='<path d="M23 10Q83 24 69 61Q60 80 32 89" fill="none" stroke="#523821" stroke-width="10"/><path d="M23 10Q83 24 69 61Q60 80 32 89" fill="none" stroke="#bc8b52" stroke-width="5"/><path d="M23 10L32 89" stroke="#eee2bd" stroke-width="2"/><path d="M55 38L67 45" stroke="#59402b" stroke-width="10"/>'
+			"arrow":
+				art='<path d="M18 80L76 22" stroke="#664b30" stroke-width="5"/><path d="M66 14L86 10L82 30L76 22Z" fill="#b9c3cb" stroke="#4a5561" stroke-width="2"/><path d="M15 59L30 64L35 79L22 87L9 73Z" fill="#e5e0cd" stroke="#8b8b80" stroke-width="2"/><path d="M15 83L36 62" stroke="#775635" stroke-width="3"/>'
+			"thread":
+				art='<ellipse cx="48" cy="49" rx="30" ry="20" fill="#e9e2cd" stroke="#918777" stroke-width="4"/><path d="M23 43Q48 18 73 43M22 51Q48 28 74 51M25 59Q48 37 71 59M55 62Q78 65 83 84" fill="none" stroke="#b8ad92" stroke-width="4"/>'
+			"cotton":
+				art='<path d="M48 84L48 55M48 70L29 57M48 70L68 57" stroke="#96704b" stroke-width="6"/><path d="M21 50C8 34 19 17 33 23C34 4 62 4 64 23C83 17 91 37 76 50C72 72 27 73 21 50Z" fill="#f5f0e5" stroke="#b8b2a3" stroke-width="3"/>'
+			"feather":
+				art='<path d="M24 73C6 48 42 8 78 10C91 42 66 76 24 73Z" fill="#eeeadd" stroke="#a7a292" stroke-width="3"/><path d="M15 87L71 22M30 69L26 48M40 57L37 34M45 51L67 47M54 40L76 33" fill="none" stroke="#b4ae9c" stroke-width="3"/>'
+			"bone":
+				art='<path d="M26 24C11 9 1 30 17 38L57 78C65 94 88 85 76 71C91 58 73 46 64 57L38 31C49 18 35 7 26 24Z" fill="#e6dfc8" stroke="#a49c86" stroke-width="3"/><path d="M32 37L58 63" stroke="#fff8e4" stroke-width="6"/>'
+		picture.load_svg_from_string('<svg xmlns="http://www.w3.org/2000/svg" width="96" height="96">'+art+'</svg>')
+		return ImageTexture.create_from_image(picture)
+	if kind in ["stone_shears","raw_mutton"]:
+		var picture:=Image.new()
+		var svg: String='<path d="M22 80L75 12L56 57L37 84Z" fill="#a9afb4" stroke="#464c52" stroke-width="4"/><path d="M72 80L20 12L38 57L58 84Z" fill="#7d858c" stroke="#464c52" stroke-width="4"/><circle cx="48" cy="53" r="5" fill="#d8dad5"/><path d="M22 80Q7 65 25 62M72 80Q89 64 70 61" fill="none" stroke="#575f65" stroke-width="8"/>' if kind=="stone_shears" else '<path d="M23 66L65 23L81 38L41 80Z" fill="#e8d5b8" stroke="#9c8570" stroke-width="4"/><path d="M18 34Q39 8 64 31Q79 58 46 72Q11 76 18 34Z" fill="#ae6670" stroke="#70434a" stroke-width="4"/><path d="M26 37Q37 21 52 35" fill="none" stroke="#d49399" stroke-width="6"/>'
+		picture.load_svg_from_string('<svg xmlns="http://www.w3.org/2000/svg" width="96" height="96">'+svg+'</svg>')
+		return ImageTexture.create_from_image(picture)
 	if kind=="boat":
 		var image:=Image.new()
-		image.load_svg_from_string('<svg xmlns="http://www.w3.org/2000/svg" width="96" height="96"><path d="M9 44L57 16L87 31L81 64L35 86L15 69Z" fill="#89572f" stroke="#4b321f" stroke-width="3"/><path d="M9 44L57 16L87 31L35 61Z" fill="#cf9e62" stroke="#694526" stroke-width="4"/><path d="M23 43L58 24L73 32L36 53Z" fill="#614329"/><path d="M32 39L47 47M45 32L60 39" stroke="#d8ae73" stroke-width="6"/><path d="M10 19L75 78M68 12L22 87" stroke="#d6ac70" stroke-width="4"/><path d="M64 70L79 81M16 83L25 89" stroke="#b78043" stroke-width="9"/></svg>')
+		# One central bench, open interior and a pointed bow. No oars on the icon.
+		image.load_svg_from_string('<svg xmlns="http://www.w3.org/2000/svg" width="96" height="96"><path d="M10 53L38 23L79 12L87 44L57 79L27 85L11 71Z" fill="#986332" stroke="#50351f" stroke-width="3"/><path d="M10 53L38 23L79 12L75 41L47 66L27 72Z" fill="#d1a36a" stroke="#694728" stroke-width="3"/><path d="M20 52L42 30L70 21L65 39L45 58L28 63Z" fill="#61432a"/><path d="M29 43L39 34L60 46L50 56Z" fill="#dcb780" stroke="#835b34" stroke-width="2"/><path d="M28 73L28 82M48 66L55 77M76 42L84 44" stroke="#ba8953" stroke-width="2"/></svg>')
 		return ImageTexture.create_from_image(image)
 	if kind=="sapling":
 		var image:=Image.new()
@@ -236,21 +262,31 @@ static func torch_model(parent: Node3D, scale_factor: float = 1.0) -> Node3D:
 	light.scale = Vector3.ONE / scale_factor
 	light.position.y = 0.12
 	light.light_color = Color(1, 1, 1)
-	light.light_energy = 0.4875
+	light.add_to_group("torch_lights")
+	light.light_energy = 0.36
 	light.omni_range = 4.0 * sqrt(2.0)
 	light.omni_attenuation = 0.65
 	light.light_specular = 0.0
 	light.shadow_opacity = 0.3
-	light.shadow_enabled = true
+	light.shadow_enabled = false
 	model.add_child(light)
 	return model
 
 static func tool_model(parent: Node3D, kind: String, scale_factor: float = 1.0) -> Node3D:
+	if kind=="bow":
+		return bow_model(parent,scale_factor*0.7)
 	var model := Node3D.new()
 	model.scale = Vector3.ONE * scale_factor
 	parent.add_child(model)
 	var handle := Surfaces.material("wood").duplicate() as StandardMaterial3D
 	var metal := Surfaces.material("planks" if kind=="wood_pickaxe" else "stone").duplicate() as StandardMaterial3D
+	if kind=="stone_shears":
+		for side in [-1,1]:
+			var blade:=tool_part(model,Vector3(side*0.028,0.08,0),Vector3(0.028,0.23,0.025),metal)
+			blade.rotation.z=side*0.35
+			tool_part(model,Vector3(side*0.047,-0.065,0),Vector3(0.065,0.06,0.03),metal)
+		tool_part(model,Vector3(0,0.015,0.015),Vector3(0.035,0.035,0.018),metal)
+		return model
 	if kind == "stone_sword":
 		# Total length 0.5 m: wooden grip 0.05 m (10 percent).
 		tool_part(model, Vector3(0, -0.075, 0), Vector3(0.026, 0.05, 0.028), handle)
@@ -493,17 +529,168 @@ static func boat_model(parent: Node3D, factor: float=1.0) -> Node3D:
 	hull.scale=Vector3.ONE*factor
 	parent.add_child(hull)
 	var wood:=Surfaces.material("planks")
-	tool_part(hull,Vector3(0,-0.12,0),Vector3(0.86,0.13,1.92),wood)
-	for side in [-1,1]:
-		tool_part(hull,Vector3(side*0.45,0.1,0),Vector3(0.1,0.42,1.95),wood)
-		tool_part(hull,Vector3(0,0.1,side*0.95),Vector3(0.85,0.4,0.1),wood)
-		tool_part(hull,Vector3(0,0.14,side*0.42),Vector3(0.82,0.1,0.22),wood)
+	var outline: Array[Vector2]=[Vector2(-0.4,0.95),Vector2(0.4,0.95),Vector2(0.46,-0.34),Vector2(0,-1.0),Vector2(-0.46,-0.34)]
+	# The opaque floor stays above the highest wave, including the hull's bob.
+	# Water is therefore occluded by wood rather than visible inside the boat.
+	boat_floor(hull,outline,0.035,0.13,wood)
+	for i in range(outline.size()):
+		var a: Vector2=outline[i]
+		var b: Vector2=outline[(i+1)%outline.size()]
+		var middle: Vector2=(a+b)*0.5
+		var edge: Vector2=b-a
+		var board:=tool_part(hull,Vector3(middle.x,0.24,middle.y),Vector3(0.085,0.49,edge.length()+0.055),wood)
+		board.rotation.y=atan2(edge.x,edge.y)
+	var seat:=tool_part(hull,Vector3(0,0.30,0.1),Vector3(0.83,0.11,0.25),wood)
+	seat.name="Seat"
 	for i in range(2):
 		var side: float= -1 if i==0 else 1
 		var pivot:=Node3D.new()
 		pivot.name="Oar%d"%i
-		pivot.position=Vector3(side*0.45,0.25,0)
+		pivot.position=Vector3(side*0.45,0.30,0)
 		hull.add_child(pivot)
 		tool_part(pivot,Vector3(side*0.5,0,0),Vector3(1.1,0.045,0.045),wood)
 		tool_part(pivot,Vector3(side*0.97,-0.02,0),Vector3(0.36,0.07,0.18),wood)
 	return hull
+
+static func boat_floor(parent: Node3D, outline: Array[Vector2], bottom: float, top: float, material: Material) -> void:
+	var surface:=SurfaceTool.new()
+	surface.begin(Mesh.PRIMITIVE_TRIANGLES)
+	for cap in [false,true]:
+		var y: float=top if cap else bottom
+		for i in range(1,outline.size()-1):
+			for index in ([0,i,i+1] if cap else [0,i+1,i]):
+				surface.set_normal(Vector3.UP if cap else Vector3.DOWN)
+				surface.set_uv(outline[index])
+				surface.add_vertex(Vector3(outline[index].x,y,outline[index].y))
+	for i in range(outline.size()):
+		var a:=Vector3(outline[i].x,bottom,outline[i].y)
+		var b:=Vector3(outline[(i+1)%outline.size()].x,bottom,outline[(i+1)%outline.size()].y)
+		var points: Array[Vector3]=[a,b,b+Vector3.UP*(top-bottom),a+Vector3.UP*(top-bottom)]
+		for index in [0,1,2,0,2,3]:
+			surface.set_normal((b-a).cross(Vector3.UP).normalized())
+			surface.set_uv(Vector2(points[index].x,points[index].z))
+			surface.add_vertex(points[index])
+	var mesh:=MeshInstance3D.new()
+	mesh.name="DryFloor"
+	mesh.mesh=surface.commit()
+	mesh.material_override=material
+	parent.add_child(mesh)
+
+static func mutton_model(parent: Node3D) -> void:
+	var meat:=StandardMaterial3D.new()
+	meat.albedo_color=Color("b4777d")
+	var bone:=StandardMaterial3D.new()
+	bone.albedo_color=Color("eadcc7")
+	tool_part(parent,Vector3(0.03,0,0),Vector3(0.3,0.045,0.05),bone).rotation.z=0.45
+	var piece:=MeshInstance3D.new()
+	var oval:=SphereMesh.new()
+	oval.radius=0.5
+	oval.height=1
+	oval.radial_segments=12
+	oval.rings=6
+	piece.mesh=oval
+	piece.scale=Vector3(0.24,0.13,0.2)
+	piece.material_override=meat
+	parent.add_child(piece)
+
+static func segment(parent: Node3D, from: Vector3, to: Vector3, width: float, surface: Material) -> MeshInstance3D:
+	var node:=tool_part(parent,(from+to)*0.5,Vector3(width,from.distance_to(to),width),surface)
+	node.quaternion=Quaternion(Vector3.UP,(to-from).normalized())
+	return node
+
+static func bow_model(parent: Node3D, factor: float=1.0) -> Node3D:
+	var root:=Node3D.new()
+	root.scale=Vector3.ONE*factor
+	parent.add_child(root)
+	var wood:=StandardMaterial3D.new()
+	wood.albedo_color=Color("a87844")
+	wood.roughness=1
+	var fiber:=StandardMaterial3D.new()
+	fiber.albedo_color=Color("e6dfc4")
+	var points: Array[Vector3]=[Vector3(-0.06,-0.36,0),Vector3(0.07,-0.24,0),Vector3(0.14,0,0),Vector3(0.07,0.24,0),Vector3(-0.06,0.36,0)]
+	for i in range(points.size()-1):
+		segment(root,points[i],points[i+1],0.035,wood)
+	var grip:=StandardMaterial3D.new()
+	grip.albedo_color=Color("50402f")
+	tool_part(root,Vector3(0.14,0,0),Vector3(0.045,0.12,0.045),grip)
+	var strings: Array[MeshInstance3D]=[segment(root,points[0],Vector3(-0.06,0,0),0.008,fiber),segment(root,Vector3(-0.06,0,0),points[-1],0.008,fiber)]
+	root.set_meta("strings",strings)
+	return root
+
+static func bow_draw(root: Node3D, amount: float) -> void:
+	var strings: Array=root.get_meta("strings",[])
+	if strings.size()!=2:
+		return
+	var middle:=Vector3(-0.06-clampf(amount,0,1)*0.15,0,0)
+	for i in range(2):
+		var from: Vector3=Vector3(-0.06,-0.36,0) if i==0 else middle
+		var to: Vector3=middle if i==0 else Vector3(-0.06,0.36,0)
+		strings[i].position=(from+to)*0.5
+		strings[i].scale.y=from.distance_to(to)/0.36
+		strings[i].quaternion=Quaternion(Vector3.UP,(to-from).normalized())
+
+const PROJECTILE_ARROW_SCALE: float=3.0
+
+static func arrow_model(parent: Node3D, factor: float=1.0) -> Node3D:
+	var root:=Node3D.new()
+	root.scale=Vector3.ONE*factor
+	parent.add_child(root)
+	var wood:=StandardMaterial3D.new()
+	wood.albedo_color=Color("967149")
+	tool_part(root,Vector3(0,0,-0.02),Vector3(0.022,0.022,0.56),wood)
+	var metal:=StandardMaterial3D.new()
+	metal.albedo_color=Color("a9b0b7")
+	var tip:=MeshInstance3D.new()
+	var cone:=CylinderMesh.new()
+	cone.top_radius=0
+	cone.bottom_radius=0.045
+	cone.height=0.12
+	cone.radial_segments=4
+	tip.mesh=cone
+	tip.material_override=metal
+	tip.rotation.x=-PI/2
+	tip.position.z=-0.35
+	root.add_child(tip)
+	var feather:=StandardMaterial3D.new()
+	feather.albedo_color=Color("e6e1d3")
+	tool_part(root,Vector3(0,0,0.2),Vector3(0.1,0.012,0.15),feather)
+	tool_part(root,Vector3(0,0,0.2),Vector3(0.012,0.1,0.15),feather)
+	return root
+
+static func bone_model(parent: Node3D) -> void:
+	var bone:=StandardMaterial3D.new()
+	bone.albedo_color=Color("e6dfc8")
+	var root:=Node3D.new()
+	root.rotation.z=0.6
+	parent.add_child(root)
+	tool_part(root,Vector3.ZERO,Vector3(0.06,0.26,0.06),bone)
+	for y in [-0.13,0.13]:
+		for x in [-0.035,0.035]:
+			tool_part(root,Vector3(x,y,0),Vector3(0.085,0.085,0.085),bone)
+
+static func fiber_item_model(parent: Node3D, kind: String) -> void:
+	var pale:=StandardMaterial3D.new()
+	pale.albedo_color=Color("eee8da")
+	var brown:=StandardMaterial3D.new()
+	brown.albedo_color=Color("a69b80")
+	if kind=="cotton_shoot":
+		sapling_model(parent)
+	elif kind=="feather":
+		tool_part(parent,Vector3(0,0,0),Vector3(0.018,0.38,0.018),brown)
+		for i in range(6):
+			var y: float=-0.1+i*0.045
+			var width: float=0.13*(1.0-absf(float(i)-2.5)/4.0)
+			tool_part(parent,Vector3(0,y,0),Vector3(width,0.055,0.018),pale)
+	elif kind=="cotton":
+		for offset in [Vector3(-0.06,0,0),Vector3(0.06,0,0),Vector3(0,0.07,0),Vector3(0,-0.04,0.05)]:
+			var mesh:=MeshInstance3D.new()
+			var ball:=SphereMesh.new()
+			ball.radius=0.085
+			ball.height=0.17
+			mesh.mesh=ball
+			mesh.material_override=pale
+			mesh.position=offset
+			parent.add_child(mesh)
+	else:
+		for i in range(5):
+			tool_part(parent,Vector3(0,i*0.027,0),Vector3(0.2,0.022,0.13),pale if i%2==0 else brown)

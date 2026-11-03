@@ -53,7 +53,7 @@ func run() -> void:
 	world.player.set_process_unhandled_input(false)
 	world.set_process_input(false)
 	world.set_process_unhandled_input(false)
-	expect(world.model.landmarks.debug_water.pits.size()==5,"Five debug pools")
+	expect(world.model.landmarks.debug_water.pits.size()==1,"One debug pool")
 	expect(world.inventory.count_item("bucket")==1,"Debug has empty bucket")
 	expect(world.inventory.count_item("water_bucket")==1,"Debug has water bucket")
 	world.player.velocity.y= -10
@@ -95,7 +95,13 @@ func run() -> void:
 	expect(world.use_bucket(),"Bucket scoops aimed source")
 	expect(world.selected_kind()=="water_bucket","Bucket fills")
 	expect(world.model.kind_at(pool+Vector3i.DOWN)=="air","Source removed from pool")
-	# Aim at the pool floor to replace the removed source.
+	# Place the filled bucket in a separate empty space (the pool now has several layers).
+	world.model.set_block(Vector3i(6,34,6),"stone")
+	world.streamer.build_now(Vector3i(0,2,0))
+	world.player.position=Vector3(6.5,36,6.5)
+	world.player.camera.rotation=Vector3(-PI/2,0,0)
+	for frame in range(3):
+		await physics_frame
 	expect(world.use_bucket(),"Bucket places water")
 	expect(world.selected_kind()=="bucket","Bucket empties")
 	if "--capture-ui" in OS.get_cmdline_user_args():
@@ -131,7 +137,7 @@ func run() -> void:
 	expect(table.recipe().get("kind","")=="bucket","V-shaped wooden bucket recipe")
 	var source: Vector3i=world.model.landmarks.debug_water.waterfall
 	expect(world.model.kind_at(source)=="water_source","Wall contains source")
-	expect(world.model.kind_at(source+Vector3i(0,-2,1)).begins_with("water_fall"),"Wall stream falls down")
+	expect(world.model.kind_at(source+Vector3i(-3,-1,0)).begins_with("water_fall"),"Wall stream falls down")
 	world.streamer.shutdown()
 	world.queue_free()
 	await process_frame

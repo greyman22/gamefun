@@ -1,4 +1,5 @@
 extends CharacterBody3D
+const PerfLog = preload("res://scripts/core/performance_log.gd")
 
 const Knockback = preload("res://scripts/core/knockback.gd")
 var knockback = Knockback.new()
@@ -16,6 +17,7 @@ const CROUCH_SPEED: float = 0.45
 const SPRINT_MULTIPLIER: float = 2.0
 const DOUBLE_TAP_MS: int = 300
 var world_model: RefCounted
+var boat_look_yaw: float=0
 var riding_boat: Node3D
 var in_water: bool=false
 var sprinting: bool = false
@@ -74,10 +76,14 @@ func _unhandled_input(event: InputEvent) -> void:
 		Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
 		get_viewport().set_input_as_handled()
 	if event is InputEventMouseMotion and not paused and not inventory_open:
-		rotate_y(-event.relative.x * SENSITIVITY)
+		if is_instance_valid(riding_boat):
+			boat_look_yaw=clampf(boat_look_yaw-event.relative.x*SENSITIVITY,-deg_to_rad(135),deg_to_rad(135))
+			rotation.y=riding_boat.rotation.y+boat_look_yaw
+		else:
+			rotate_y(-event.relative.x * SENSITIVITY)
 		camera.rotation.x = clampf(camera.rotation.x - event.relative.y * SENSITIVITY, -1.4, 1.4)
 
-func _physics_process(delta: float) -> void:
+func _measured_physics_process(delta: float) -> void:
 	if is_instance_valid(riding_boat):
 		velocity=Vector3.ZERO
 		jump_requested=false
@@ -203,9 +209,11 @@ func reset_fall_tracking() -> void:
 	fall_peak = position.y
 	airborne = false
 
-func receive_attack(amount: float, attacker: Vector3) -> float:
+func receive_attack(amount: float, attacker: Vector3, source: String="zombie") -> float:
+	if source=="arrow" and vitals.protection>0:
+		return 0
 	var before: float = vitals.health
-	var taken: float = vitals.damage(amount, "zombie")
+	var taken: float = vitals.damage(amount, source)
 	# A lethal hit may synchronously respawn us; do not push the new incarnation.
 	if taken > 0 and taken < before:
 		knockback.start(attacker, position, taken)
@@ -265,3 +273,8 @@ func swim_vertical(delta: float, upward: bool) -> void:
 	velocity.y=move_toward(clampf(velocity.y,-1.5,2.2),2.2 if upward else -0.45,delta*4.0)
 	jump_buffer_remaining=0
 	coyote_remaining=0
+
+func _physics_process(delta: float) -> void:
+	var stamp: int=PerfLog.begin()
+	_measured_physics_process(delta)
+	PerfLog.finish("player_movement",stamp)

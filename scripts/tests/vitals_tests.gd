@@ -116,7 +116,7 @@ func run() -> void:
 	var kept: int = world.inventory.count_item("wood")
 	world.player.vitals.damage(1000)
 	expect(world.player.vitals.health == 100 and world.player.vitals.satiety == 100 and world.player.position.distance_to(world.player.respawn_position) < 0.1, "Debug death must restore both stats and return to gathering point")
-	expect(world.inventory.count_item("wood") == kept and world.crafting.slots[0].count == 2 and world.stack_cursor.held.count == 4, "Debug death must retain inventory, crafting ingredients and held stack")
+	expect(world.inventory.count_item("wood") == 0 and world.crafting.slots[0].count == 0 and world.stack_cursor.held.count == 0, "Debug death now clears carried inventory into world drops")
 	world.game_mode = "play"
 	world.player.vitals.damage(1000)
 	var equipment: int = world.stack_cursor.held.count

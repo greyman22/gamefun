@@ -7,6 +7,8 @@ var airborne: bool = false
 var fall_peak: float = 0
 const Combat = preload("res://scripts/core/combat.gd")
 var pursuit_allowed: bool = true
+var actor_kind: String="zombie"
+var max_health: float=100
 var health: float = 100
 const Registry = preload("res://scripts/core/registry.gd")
 const RADIUS: float = 15.0
@@ -14,6 +16,8 @@ const Player = preload("res://scripts/player.gd")
 const Navigation = preload("res://scripts/core/zombie_navigation.gd")
 const SPEED: float = Player.SPEED / 3.0
 var model: RefCounted
+var record: Dictionary={}
+var night_spawn: bool=false
 var home := Vector3.ZERO
 var goal := Vector3.ZERO
 var wait: float = 0
@@ -32,6 +36,13 @@ var origin := Vector3.ZERO
 var behavior: String = "wander"
 var navigation = Navigation.new()
 var route: Array[Vector3] = []
+var decision_interval: float=0.25
+var behavior_access: bool=true
+var behavior_elapsed: float=0
+var behavior_accum: float=0
+var route_target:=Vector3(INF,INF,INF)
+var route_revision: int=-1
+var rest_offset: float=0
 var route_elapsed: float = 0
 var strike_time: float = -1
 var strike_hit: bool = false
@@ -44,29 +55,22 @@ var progress_elapsed: float = 0
 
 func configure(data: RefCounted, record: Dictionary) -> void:
 	model = data
+	self.record=record
+	actor_kind=str(record.get("type","zombie"))
+	max_health=float(Combat.stats(actor_kind).get("health",100))
+	night_spawn=record.get("night_spawn",false)
 	home = record.home
 	origin = record.get("spawn_position", record.position)
 	navigation.model = model
+	rest_offset=float(absi(str(record.position).hash())%1000)/100
+	behavior_elapsed=rest_offset/40
 	goal = record.position
 	progress_anchor = record.position
+	Combat.starting_health(record,actor_kind)
 	restore_state(record.get("state", {}))
 
 func _ready() -> void:
-	visual = Node3D.new()
-	add_child(visual)
-	var skin := material(Color(0.3, 0.48, 0.2))
-	var shirt := material(Color(0.17, 0.35, 0.38))
-	var trousers := material(Color(0.22, 0.2, 0.32))
-	var dark := material(Color(0.07, 0.1, 0.045))
-	part(visual, Vector3(0, 1.14, 0), Vector3(0.56, 0.65, 0.3), shirt)
-	part(visual, Vector3(0, 1.68, 0), Vector3(0.49, 0.46, 0.44), skin)
-	for x in [-0.12, 0.12]:
-		part(visual, Vector3(x, 1.72, -0.226), Vector3(0.09, 0.075, 0.025), dark)
-	part(visual, Vector3(0, 1.55, -0.226), Vector3(0.24, 0.06, 0.025), dark)
-	left_leg = limb(Vector3(-0.145, 0.83, 0), Vector3(0.24, 0.8, 0.27), trousers)
-	right_leg = limb(Vector3(0.145, 0.83, 0), Vector3(0.24, 0.8, 0.27), trousers)
-	left_arm = limb(Vector3(-0.4, 1.4, 0), Vector3(0.22, 0.68, 0.24), skin)
-	right_arm = limb(Vector3(0.4, 1.4, 0), Vector3(0.22, 0.68, 0.24), skin)
+	build_body()
 	var hit_area := Area3D.new()
 	hit_area.collision_layer = 2
 	hit_area.collision_mask = 0
@@ -88,6 +92,23 @@ func _ready() -> void:
 	if not airborne:
 		fall_peak = position.y
 	animate(false, 0)
+
+func build_body() -> void:
+	visual = Node3D.new()
+	add_child(visual)
+	var skin := material(Color(0.3, 0.48, 0.2))
+	var shirt := material(Color(0.17, 0.35, 0.38))
+	var trousers := material(Color(0.22, 0.2, 0.32))
+	var dark := material(Color(0.07, 0.1, 0.045))
+	part(visual, Vector3(0, 1.14, 0), Vector3(0.56, 0.65, 0.3), shirt)
+	part(visual, Vector3(0, 1.68, 0), Vector3(0.49, 0.46, 0.44), skin)
+	for x in [-0.12, 0.12]:
+		part(visual, Vector3(x, 1.72, -0.226), Vector3(0.09, 0.075, 0.025), dark)
+	part(visual, Vector3(0, 1.55, -0.226), Vector3(0.24, 0.06, 0.025), dark)
+	left_leg = limb(Vector3(-0.145, 0.83, 0), Vector3(0.24, 0.8, 0.27), trousers)
+	right_leg = limb(Vector3(0.145, 0.83, 0), Vector3(0.24, 0.8, 0.27), trousers)
+	left_arm = limb(Vector3(-0.4, 1.4, 0), Vector3(0.22, 0.68, 0.24), skin)
+	right_arm = limb(Vector3(0.4, 1.4, 0), Vector3(0.22, 0.68, 0.24), skin)
 
 func material(color: Color) -> StandardMaterial3D:
 	var result := StandardMaterial3D.new()
@@ -116,7 +137,7 @@ func clear_at(feet: Vector3) -> bool:
 	for x in [-0.28, 0.28]:
 		for z in [-0.28, 0.28]:
 			for y in [0.06, 0.95, 1.9]:
-				if Registry.cube(model.block(Vector3i((feet + Vector3(x, y, z)).floor()))):
+				if Registry.cube(model.sample_block(Vector3i((feet + Vector3(x, y, z)).floor()))):
 					return false
 	return true
 
@@ -129,7 +150,7 @@ func floor_below(feet: Vector3, depth: float = 1.2) -> float:
 			for y in range(floori(feet.y - 0.001), floori(feet.y - depth) - 1, -1):
 				var cell := Vector3i(floori(feet.x+x),y,floori(feet.z+z))
 				var top: float = y+1.0
-				if top <= feet.y+0.02 and Registry.cube(model.block(cell)):
+				if top <= feet.y+0.02 and Registry.cube(model.sample_block(cell)):
 					highest = maxf(highest,top)
 					break
 	return highest
@@ -205,7 +226,7 @@ func choose_goal() -> void:
 		var radius: float = sqrt(randf()) * (RADIUS - 0.8)
 		var candidate: Vector3 = home + Vector3(cos(angle) * radius, 0, sin(angle) * radius)
 		# Wander around the house rather than repeatedly trying to cross its walls.
-		if absf(candidate.x - home.x) < 6.5 and absf(candidate.z - home.z) < 5.5:
+		if not night_spawn and absf(candidate.x - home.x) < 6.5 and absf(candidate.z - home.z) < 5.5:
 			continue
 		goal = candidate
 		return
@@ -232,7 +253,7 @@ func start_hop(direction: Vector3) -> bool:
 		if floor_y == -INF:
 			return false
 		target.y = floor_y
-	if target.y>position.y+0.1 and model.kind_at(Vector3i((target-Vector3(0,0.05,0)).floor())) in ["fence","gate"]:
+	if target.y>position.y+0.1 and model.sample_kind(Vector3i((target-Vector3(0,0.05,0)).floor())) in ["fence","gate"]:
 		return false
 	if not clear_at(target):
 		return false
@@ -285,7 +306,7 @@ func sight_to(feet: Vector3) -> bool:
 	var to: Vector3 = feet + Vector3(0, 1.2, 0)
 	var steps: int = maxi(2, ceili(from.distance_to(to) / 0.25))
 	for index in range(1, steps):
-		if model.kind_at(Vector3i(from.lerp(to,float(index)/steps).floor())) not in ["fence","gate"] and Registry.cube(model.block(Vector3i(from.lerp(to, float(index) / steps).floor()))):
+		if model.sample_kind(Vector3i(from.lerp(to,float(index)/steps).floor())) not in ["fence","gate"] and Registry.cube(model.sample_block(Vector3i(from.lerp(to, float(index) / steps).floor()))):
 			return false
 	return true
 
@@ -293,11 +314,27 @@ func set_behavior(next: String) -> void:
 	if behavior == next:
 		return
 	behavior = next
+	if next=="chase" and night_spawn:
+		home=position
+		origin=position
+		record.home=position
+		record.spawn_position=position
+		record.night_engaged=true
 	route.clear()
 	route_elapsed = 0
 	wait = 0
 
 func update_behavior(delta: float, player: CharacterBody3D) -> void:
+	if pursuit_allowed!=behavior_access:
+		behavior_access=pursuit_allowed
+		behavior_elapsed=0
+	behavior_accum+=delta
+	behavior_elapsed-=delta
+	if behavior_elapsed>0:
+		return
+	delta=behavior_accum
+	behavior_accum=0
+	behavior_elapsed=decision_interval
 	if player == null:
 		return
 	if not pursuit_allowed:
@@ -305,7 +342,7 @@ func update_behavior(delta: float, player: CharacterBody3D) -> void:
 			set_behavior("return")
 		strike_time = -1
 	var distance: float = position.distance_to(player.position)
-	var settings: Dictionary = Combat.stats("zombie")
+	var settings: Dictionary = Combat.stats(actor_kind)
 	if behavior == "chase" and distance >= float(settings.get("aggro_break", 20)):
 		set_behavior("return")
 	elif pursuit_allowed and behavior != "chase" and distance <= float(settings.get("aggro_start", 10)) and sight_to(player.position):
@@ -316,21 +353,26 @@ func update_behavior(delta: float, player: CharacterBody3D) -> void:
 		set_behavior("wander")
 		choose_goal()
 		return
-	if behavior == "chase" and distance < 1.3:
+	if behavior == "chase" and hold_range(player,distance):
 		goal = position
 		rotation.y = lerp_angle(rotation.y, atan2(position.x - player.position.x, position.z - player.position.z), minf(1, delta * 12))
 		return
 	route_elapsed -= delta
-	var destination: Vector3 = player.position if behavior == "chase" else origin
-	if route_elapsed <= 0 and not hopping:
-		route = navigation.path(position, destination)
-		route_elapsed = 0.65
+	var destination: Vector3 = behavior_destination(player)
+	var revision: int=navigation.budget.revision if navigation.budget!=null else 0
+	if route_elapsed <= 0 and not hopping and (route.is_empty() or route_target.distance_squared_to(destination)>2.25 or route_revision!=revision):
+		var found: Array[Vector3]=navigation.path(position,destination)
+		if not navigation.deferred:
+			route=found
+			route_target=destination
+			route_revision=revision
+			route_elapsed=0.5 if route.is_empty() else 0.65
 	while not route.is_empty() and Vector2(route[0].x - position.x, route[0].z - position.z).length() < 0.22 and absf(route[0].y - position.y) < 0.1:
 		route.pop_front()
 	goal = route[0] if not route.is_empty() else destination
 
 func can_hit(player: CharacterBody3D) -> bool:
-	return pursuit_allowed and player != null and absf(player.position.y - position.y) <= 1.3 and Vector2(player.position.x - position.x, player.position.z - position.z).length() <= float(Combat.stats("zombie").reach) and sight_to(player.position)
+	return pursuit_allowed and player != null and absf(player.position.y - position.y) <= 1.3 and Vector2(player.position.x - position.x, player.position.z - position.z).length() <= float(Combat.stats(actor_kind).reach) and sight_to(player.position)
 
 func advance_strike(delta: float, player: CharacterBody3D) -> void:
 	if strike_time < 0:
@@ -341,11 +383,12 @@ func advance_strike(delta: float, player: CharacterBody3D) -> void:
 	if strike_time >= 0.34 and not strike_hit:
 		strike_hit = true
 		if can_hit(player):
-			player.receive_attack(Combat.damage(float(Combat.stats("zombie").attack), float(Combat.stats("player").defense)), position)
+			player.receive_attack(Combat.damage(float(Combat.stats(actor_kind).attack), float(Combat.stats("player").defense)), position)
 	if strike_time >= 0.65:
 		strike_time = -1
 
 func receive_hit(amount: float) -> void:
+	behavior_elapsed=0
 	health = maxf(0, health - amount)
 	hurt_time = 0.22
 	wait = maxf(wait, 0.12)
@@ -444,6 +487,10 @@ func simulate(delta: float, player: CharacterBody3D = null) -> void:
 		monitor_progress(delta)
 		animate(true, delta)
 		return
+	if behavior=="wander" and not pushed and strike_time<0 and fposmod(model.game_time+rest_offset,10.0)<4.0:
+		simulate_gravity(delta)
+		animate(false,delta)
+		return
 	var walking: bool = false
 	wait = maxf(0, wait - delta)
 	var direction: Vector3 = goal - position
@@ -478,7 +525,7 @@ func simulate(delta: float, player: CharacterBody3D = null) -> void:
 func attack(player: CharacterBody3D) -> void:
 	if health <= 0 or attack_cooldown > 0 or strike_time >= 0 or hopping or knockback.active() or not can_hit(player):
 		return
-	attack_cooldown = float(Combat.stats("zombie").interval)
+	attack_cooldown = float(Combat.stats(actor_kind).interval)
 	strike_time = 0
 	strike_hit = false
 	rotation.y = atan2(position.x - player.position.x, position.z - player.position.z)
@@ -514,8 +561,8 @@ func animate(walking: bool, delta: float) -> void:
 	for surface: Dictionary in surfaces:
 		surface.material.albedo_color = (surface.base as Color).lerp(Color(1, 0.4, 0.3), hurt_time / 0.22 * 0.8)
 	health_caption.global_position = global_position + Vector3(0, 2.2, 0)
-	health_caption.visible = health < 100 or behavior == "chase"
-	health_caption.text = "Zombie · %d %%" % ceili(health)
+	health_caption.visible = health < max_health or behavior == "chase"
+	health_caption.text = "%s · %d %%"%[Combat.stats(actor_kind).name,ceili(health/max_health*100)]
 
 func serialize_state() -> Dictionary:
 	return {"airborne": airborne, "fall_peak": fall_peak, "knockback": knockback.snapshot(), "behavior": behavior, "strike_time": strike_time, "strike_hit": strike_hit, "health": health, "goal": goal, "wait": wait, "walk_time": walk_time, "rotation": rotation.y, "velocity_y": velocity_y, "hopping": hopping, "hop_from": hop_from, "hop_to": hop_to, "hop_time": hop_time, "attack_cooldown": attack_cooldown}
@@ -527,7 +574,7 @@ func restore_state(state: Dictionary) -> void:
 	behavior = state.get("behavior", "wander")
 	strike_time = state.get("strike_time", -1)
 	strike_hit = state.get("strike_hit", false)
-	health = clampf(float(state.get("health", 100)), 0, 100)
+	health = clampf(float(state.get("health", max_health)), 0, max_health)
 	goal = state.get("goal", goal)
 	wait = state.get("wait", 0)
 	walk_time = state.get("walk_time", 0)
@@ -539,3 +586,9 @@ func restore_state(state: Dictionary) -> void:
 	hop_to = state.get("hop_to", Vector3.ZERO)
 	hop_time = state.get("hop_time", 0)
 	attack_cooldown = state.get("attack_cooldown", 0)
+
+func hold_range(_player: CharacterBody3D, distance: float) -> bool:
+	return distance<float(Combat.stats(actor_kind).get("stand_off",1.3))
+
+func behavior_destination(player: CharacterBody3D) -> Vector3:
+	return player.position if behavior=="chase" else origin

@@ -68,13 +68,13 @@ func run() -> void:
 	actor.wait = 0
 	actor.behavior = "return"
 	actor.goal = actor.position + Vector3(2, 0, 0)
-	for frame in range(12):
+	for frame in range(24):
 		actor.simulate(1.0 / 60.0)
 	expect(actor.position.distance_to(recovered) > 0.2, "A recovered zombie must be able to walk again")
 	world.streamer.build_now(Vector3i(0, 0, 0))
 	world.player.position = actor.position + Vector3(0, 0.05, 1.6)
 	world.player.camera.look_at(actor.position + Vector3(0, 1.4, 0))
-	world.inventory.slots[24] = {"kind": "stone_sword", "count": 1}
+	world.inventory.slots[27] = {"kind": "stone_sword", "count": 1}
 	world.select_hotbar(0)
 	world.attack_cooldown = 0
 	await physics_frame

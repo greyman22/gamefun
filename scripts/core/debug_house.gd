@@ -1,10 +1,12 @@
 extends RefCounted
+const StructureTrees=preload("res://scripts/core/structure_trees.gd")
 const Writer = preload("res://scripts/core/zombie_house.gd")
 const Doors = preload("res://scripts/core/doors.gd")
 const Visuals = preload("res://scripts/item_visuals.gd")
 
 func place(model: RefCounted) -> Dictionary:
 	if model.landmarks.has("debug_house"):
+		upgrade_roof(model)
 		return model.landmarks.debug_house
 	var heights: Array[int] = []
 	for x in range(10,17):
@@ -14,6 +16,7 @@ func place(model: RefCounted) -> Dictionary:
 	var base := Vector3i(10,maxi(0,heights[heights.size()/2]-1),8)
 	var writer := Writer.new()
 	writer.data = model
+	StructureTrees.clear_area(model,Vector2i(base.x-2,base.z-2),Vector2i(base.x+9,base.z+10),writer.write)
 	# An ordinary voxel building: five by six clear interior cells, three high.
 	for x in range(-2,9):
 		for z in range(-2,10):
@@ -31,7 +34,7 @@ func place(model: RefCounted) -> Dictionary:
 	for x in range(-1,8):
 		var roof_y: int = 4 + (4-absi(x-3))/2
 		for z in range(-1,9):
-			writer.write(base+Vector3i(x,roof_y,z),"planks")
+			writer.write(base+Vector3i(x,roof_y,z),"stone")
 		for z in [0,7]:
 			for y in range(4,roof_y):
 				writer.write(base+Vector3i(x,y,z),"planks")
@@ -57,6 +60,21 @@ func place(model: RefCounted) -> Dictionary:
 		for offset in [Vector3i.ZERO,Vector3i.LEFT,Vector3i.RIGHT,Vector3i.UP,Vector3i.DOWN,Vector3i.FORWARD,Vector3i.BACK]:
 			model.revisions[key+offset] = int(model.revisions.get(key+offset,0))+1
 		model.block_changed.emit(key*16)
-	var record := {"base":base,"interior":Vector3i(5,3,6),"door":door_cell,"torches":torches}
+	var record := {"base":base,"interior":Vector3i(5,3,6),"door":door_cell,"torches":torches,"stone_roof":true}
 	model.landmarks.debug_house = record
 	return record
+
+static func upgrade_roof(model: RefCounted) -> void:
+	if not model.landmarks.has("debug_house"):
+		return
+	var house: Dictionary=model.landmarks.debug_house
+	if house.get("stone_roof",false):
+		return
+	var base: Vector3i=house.base
+	for x in range(-1,8):
+		var y: int=4+(4-absi(x-3))/2
+		for z in range(-1,9):
+			var cell: Vector3i=base+Vector3i(x,y,z)
+			if model.kind_at(cell)=="planks":
+				model.set_block(cell,"stone")
+	house.stone_roof=true

@@ -38,7 +38,7 @@ func _process(delta: float) -> void:
 			for x in range(center.x-radius,center.x+radius+1):
 				for z in range(center.z-radius,center.z+radius+1):
 					var key:=Vector3i(x,-1,z)
-					if not natural_seen.has(key) and Vector2(x*16+8-player.position.x,z*16+8-player.position.z).length()<view_distance+16:
+					if not natural_seen.has(key) and Vector2(x*16+8-player.position.x,z*16+8-player.position.z).length()<view_distance+16 and (Vector3(key*16)+Vector3.ONE*8).distance_to(player.position)<=view_distance+40:
 						candidates.append(key)
 			candidates.sort_custom(func(a: Vector3i,b: Vector3i) -> bool: return Vector2(a.x*16-player.position.x,a.z*16-player.position.z).length_squared()<Vector2(b.x*16-player.position.x,b.z*16-player.position.z).length_squared())
 			for i in range(mini(4,candidates.size())):

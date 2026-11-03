@@ -31,7 +31,7 @@ static func grow(model: RefCounted, id: String) -> bool:
 				var value: int=model.generator.tree_kind(cell,tree)
 				if value==0:
 					continue
-				if cell.y>63 or model.kind_at(cell) not in ["air","sapling","foliage"]:
+				if cell.y>model.generator.max_y() or model.kind_at(cell) not in ["air","sapling","foliage"]:
 					return false
 				changes[cell]=Registry.kind(value)
 	# Wait for animals/monsters to move out of the trunk before growing.

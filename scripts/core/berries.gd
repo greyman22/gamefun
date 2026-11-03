@@ -25,7 +25,7 @@ static func ensure_nearby(model: RefCounted, position: Vector3) -> void:
 			var point: Vector2i = centre(model, x, z)
 			if groups.has(key) or Vector2(point.x - position.x, point.y - position.z).length() > 80:
 				continue
-			if absi(point.x) > 1016 or absi(point.y) > 1016:
+			if absi(point.x) > model.generator.world_limit()-8 or absi(point.y) > model.generator.world_limit()-8:
 				continue
 			var candidates: Array[Dictionary] = []
 			for dx in range(-2, 3):
@@ -53,7 +53,7 @@ static func ripe(record: Dictionary, time: float) -> bool:
 static func at_cell(model: RefCounted, cell: Vector3i) -> String:
 	for id: String in model.entities:
 		var record: Dictionary = model.entities[id]
-		if record.type == "berry_bush" and record.cell == cell:
+		if record.type in ["berry_bush","cotton_plant"] and record.cell == cell:
 			return id
 	return ""
 

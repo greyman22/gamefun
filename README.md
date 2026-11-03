@@ -1,6 +1,6 @@
 # Game Fun
 
-Ett blockspel i Godot 4.6 med en seedstyrd värld på 2 048 × 2 048 meter. Höjdutrymmet sträcker sig från -64 till +63 meter. Mark, träd och byggda block ligger i samma världsmodell och visas områdesvis.
+Ett blockspel i Godot 4.6 med en seedstyrd värld. Nya världar har 32 768 × 32 768 meters räckvidd och höjdutrymme från -64 till +255 meter. Endast närliggande terräng laddas. Äldre sparvärldar behåller sina ursprungliga gränser. Mark, träd och byggda block ligger i samma världsmodell och visas områdesvis.
 
 ## Starta och testa
 
@@ -202,12 +202,12 @@ Inventory now has 36 slots (9 columns, 4 rows) and quickbar keys 1-9. Older 32-s
 
 
 ### Hens and chicks
-Wild flocks contain 3-4 hens, spaced 50 m in debug and 60-100 m in play. Hens roam within 15 m of their flock origin. Select a soul remnant and right-click an adult hen within 3 m to feed it. Hearts appear for 1.5 seconds; love lasts 60 seconds. Two fed adults within 2 m approach each other and produce one chick after 3 seconds together. Both love states are consumed. Chicks mature after 120 seconds.
+Wild flocks contain 3-4 hens, spaced 50 m in debug and 60-100 m in play. Hens roam within 20 m of their individual home. Select grass seeds and right-click an adult hen within 3 m to feed it. Hearts appear for 1.5 seconds; love lasts 60 seconds. Two fed adults within 2 m approach each other and produce one chick after 3 seconds together. Both love states are consumed. Chicks mature after 120 seconds.
 Adults lay one egg every 60 seconds in debug or at random 180-300 second intervals in play. Eggs fall to the ground and use normal nearby collection. Eggs stack to 64. New dropped items, including eggs, expire after 300 seconds of game time. Growth, love, pairing, egg deadlines and expiry are saved; distant flocks have no active Godot nodes and do not accumulate unlimited eggs while unloaded.
 
 Hens can be attacked with the axe or stone sword. Normal adults have 24 health and 10 defense, so one axe blow kills them; 10% have 90 defense and survive the first hit. Chicks have 6 health and no defense. Adults drop one raw chicken (stack limit 64); chicks leave no loot. Killed hens do not respawn. These values are in data/combat.json and actor base defenses appear in the F3 table.
 
-After successful breeding, both adult hens rest for 60 seconds in debug or 180 seconds in play. Resting hens have grey-violet feathers and reject soul remnants without consuming them. The cooldown is saved with the hen.
+After successful breeding, both adult hens rest for 60 seconds in debug or 180 seconds in play. Resting hens have grey-violet feathers and reject breeding seeds without consuming them. The cooldown is saved with the hen.
 
 
 ### Day, night and monster alerts
@@ -217,7 +217,7 @@ Five indicators at the upper right are grey when inactive. Z is the zombie alert
 
 
 Latest movement and balance: walking is 3 m/s (60% of the former speed). Double-tap W within 0.3 s and hold W to sprint at 6 m/s. Release W or run into a wall on the ground to stop sprinting; jumping over an obstacle preserves sprint. Debug days last 6 real minutes; play days remain 24 minutes. Sun and moon stay inside the camera far plane and ignore fog; the moon travels from 21:00 to 04:00 and adds weak nighttime illumination.
-Correct stone/dirt/log tools now take 1.2 s; an axe harvests a berry bush in 0.8 s without durability loss. Other berry harvests still take 3 s. Tunnel daylight reaches only 8 path metres and fades cubically (about 1.6% at six metres). Soul remnants lure hens/chicks within 10 m. Unarmed player reach is 2.2 m; zombie reach is 2.6 m. Raw chicken now depicts a plucked whole bird with wings, two legs and neck in both inventory and 3D.
+Correct stone/dirt/log tools now take 1.2 s; an axe harvests a berry bush in 0.8 s without durability loss. Other berry harvests still take 3 s. Tunnel daylight reaches only 8 path metres and fades cubically (about 1.6% at six metres). Grass seeds lure hens/chicks within 10 m. Unarmed player reach is 2.2 m; zombie reach is 2.6 m. Raw chicken now depicts a plucked whole bird with wings, two legs and neck in both inventory and 3D.
 
 
 Doors: craft one door from six planks in two vertical columns at the workbench (3x3). Place on solid ground with two clear blocks above; right-click the door leaf to open/close. Opening rotates the leaf and clears voxel navigation; occupied doorways cannot be closed. Door state persists. Bedrock is excluded from debug inventory, including loaded debug saves, and remains unbreakable.
@@ -305,7 +305,7 @@ Torch crafting: one coal above one stick produces four torches. The template use
 
 ### Vattenprototyp
 
-Starta en **ny debugvärld** för fem vattenfyllda gropar längs en stenlagd gång väster om starten (x -8 till -28, z 5). En bergvägg vid x -10, z -7 har en vattenkälla som rinner ut och nedåt. Befintliga sparade världar byggs inte om.
+Starta en **ny debugvärld** för en vattenfylld grop längs en stenlagd gång väster om starten (x -8, z 5). En stendel i kullen vid x -18, z 18 har en vattenkälla som rinner västerut, bort från starten. Befintliga sparade världar byggs inte om.
 
 - Debug-inventariet innehåller en trähink och en vattenfylld hink. Receptet för trähinken finns bland verktygen: tre träklossar i V-form på arbetsbänken.
 - Välj tom hink och högerklicka på en vattenkälla för att fylla hinken. Rinnande vatten kan inte samlas in.
@@ -322,7 +322,7 @@ Två vattenkällor med en tom eller rinnande ruta mellan sig skapar en full vatt
 
 ### Gräsfrön och varierade träd
 
-Välj gräsfrön i snabbfältet för att locka hönor och kycklingar inom tio meter. De rör sig då ungefär dubbelt så snabbt. Själsrester används fortfarande för parning men lockar inte längre djuren på avstånd.
+Välj gräsfrön i snabbfältet för att locka hönor och kycklingar inom tio meter. De rör sig då ungefär dubbelt så snabbt. Gräsfrön används även för parning: högerklicka på en vuxen höna. Själsrester används inte längre för att mata höns.
 
 Nya världar har varierade trädkronor. Högre träd kan få en eller två grenar av stamblock och extra lövverk. Planterade träd får också dessa former. Befintliga sparade världar behåller sin ursprungliga naturliga trädgenerering.
 
@@ -336,11 +336,119 @@ Roddbåten har en skrovlängd på två meter och byggs av fem träklossar i arbe
 
 - Välj båten och högerklicka på vatten med plats för hela skrovet.
 - Högerklicka på båten för att kliva i.
-- Ro med WASD. Riktningen följer vart du tittar och farten är 6 meter/sekund, samma som spelarens sprintfart. Årorna rör sig medan båten går framåt.
-- Mellanslag: kliv ur. Du kan sedan simma som vanligt.
+- Ro med W/S och vrid båten med A/D. Musen styr bara blicken, med 90 grader spärrat rakt bakåt. Farten är 6 meter/sekund, samma som spelarens sprintfart. Årorna rör sig medan båten går framåt.
+- Shift: kliv ur. Du kan sedan simma som vanligt.
 - Slå båten tre gånger med vänster musknapp för att få tillbaka den som ett flytande föremål.
 - Båtens position, riktning och om spelaren sitter i den sparas och återställs med världen.
 
 ### Bild av spelvyn
 
 Tryck **F4** för att frysa spelet utan pausmeny och släppa muspekaren. Ta sedan ett skärmklipp med **Windows + Shift + S**. Tryck **F4** igen för att fortsätta.
+
+### Luft, dödsföremål och simmande höns
+
+När spelarens huvud är under vatten visas fem luftbubblor ovanför mättnaden. En halv bubbla försvinner per sekund. Efter tio sekunder utan luft dör spelaren. Ovanför ytan fylls lungorna på tre sekunder; indikatorn döljs när de är fulla.
+
+Vid död i **både debug och spelläge** tappas slumpvis 70–90 % av de burna föremålen på torr mark inom fyra meters horisontellt avstånd. I vatten söks torr mark inom tio meter. Finns ingen sådan mark försvinner utrustningen. Spelaren återuppstår utan utrustning, med full hälsa och luft. Verktygens slitage bevaras på tappade föremål.
+
+Höns och kycklingar skapas endast på torr mark och flyter när de hamnar i vatten. De kan simma efter valda gräsfrön, med lägre fart än på land. De undviker vatten vid vanligt strövande.
+
+Nya debugvärldar har en testbassäng och ett stenigt parti på en kulle med ett utlopp bort från starten. Facklors sken dämpas kraftigt i dagsljus utomhus men finns kvar i mörka rum och tunnlar.
+
+Om lockandet upphör medan en höna simmar avbryter den det gamla följsteget och söker en torr strand. Hempositionen placeras på land; någon ny hemposition ute i vattnet skapas inte. Vanligt strövande återupptas först när hönan kommit upp på land.
+
+Både hönor och kycklingar visar simtag med nedsänkt kropp och paddlande fötter när de är i vatten. Båtens ikon är utan åror; skrovet har spetsig för, en sittbänk och en torr insida. Årorna finns kvar på båten i världen.
+
+### Terrängzoner
+
+Nya världar har tre seedstyrda zoner med 1 000–2 000 meters utsträckning längs vardera axeln. Övergångarna blandas över cirka 110 meter.
+
+- **Gräsmark:** mest plana ytor med små kullar och sänkor, med landytor oftast inom ungefär −4 till +4 meter. Sjöbottnar kan ligga lägre.
+- **Kuperad:** måttliga kullar, dalar och enstaka stenpartier, närmare gräsmarkens karaktär.
+- **Berg:** mest kuperad terräng med färre höga toppar, stenpartier och enstaka branta bergssidor.
+- **Bergsgrottor:** grunda, slingrande passager med 2–4 meters höjd och 2–6 meters bredd. Alla bergsregioner kan ha grottor; det finns både U-formade gångar, andra svängar och korta återvändsgrenar. Bergtäckningen hålls grund, omkring högst 20 meter.
+
+Starta en **ny debugvärld** och tryck **F3**. Där visas aktuell zon och dess storlek. Använd **Hem**, **Gräsmark**, **Kuperad**, **Berg** eller **Berggrottor** för att prova utan lång promenad. En fackla väljs vid grottbesök om den finns i snabbfältet. Gamla sparvärldar byggs inte om.
+
+Den dämpade terrängen, glesare skogen och de böjda grottorna används i **nya världar**. Gräsmark innehåller även hela öppna partier utan träd. Tidigare sparade världar behåller sin generatorversion och terräng.
+
+### Prestandamätning
+I debugläge: öppna F3 och välj **Starta prestandamätning**. Stäng F3 och spela som vanligt. Öppna F3 igen och välj **Stoppa och spara prestandamätning**. Knappen **Öppna mapp med prestandarapporter** visar sparade JSON-rapporter.
+
+Rapporten innehåller bildrutetid (medel, 95:e percentil och maximum), långsamma bildrutor över 50 ms, sammanfattade aktivitetstider samt mätvärden och position en gång per sekund. Aktiviteter omfattar terrängladdning, installation av terränggrafik, kollisionsytor, spelarrörelse, varelser, markföremål, verktygsanimering och belysning. Tider för överordnade och underordnade aktiviteter överlappar och ska inte summeras. GPU-tid och beräkning inne i bakgrundstrådar mäts inte separat. Menyer och laddningar under mätningen ingår; pausa inte med F4 vid ett jämförelsetest. Mätningen är avstängd från start och skriver fil först när den stoppas. Stoppa och spara innan spelet stängs. Långsamma bildrutor begränsas till 500 poster och sekundprov till 3600 poster.
+
+### Får, lamm och stensax
+Får förekommer i grupper om 3–4 på land, på andra platser än höns. Nya får börjar minst 10 meter från varandra och har egna hempositioner. Två grupper bildar en gruppering med 50 meter mellan gruppmitterna; närmaste gruppmitt i nästa gruppering ligger minst 100 meter bort i debug och 160 meter i spel. Gruppavståndet omfattar inte fårens rörelse eller omvägar för att hitta torr mark. Redan sparade får flyttas inte, och tidigare befolkade områden får inte dubbla uppsättningar. Cirka 20 procent av naturligt skapade får respektive höns börjar som lamm eller kycklingar. Får vandrar inom 30 meter från hemplatsen och lockas av valt sädesstrå. Högerklicka med sädesstrå för parning; samma regler för hjärtan, tre sekunders parning och återhämtning som för höns. Lamm och kycklingar växer på 2 minuter i debug och 10 minuter i spel. Befintliga ungars sparade tillväxttid ändras inte.
+
+Stensax: två stenar diagonalt (övre högra och nedre vänstra rutan), i 2×2 eller 3×3. Högerklicka med stensax på ett vuxet får med ull. Varje klippning sliter saxen en gång och ger alltid 1–3 ullblock som faller till marken. Ullen återkommer efter slumpmässigt 30–60 sekunder i debug eller 30–240 sekunder i spel. Ullblock kan stackas till 64 och placeras.
+
+Vuxna får som dödas för hand eller med vapen lämnar en fårdel. Lamm dör av ett slag och ger inget byte. Överlevande får och höns flyr i fyra sekunder; på land är flyktfarten 6 meter/sekund. Får undviker vatten, söker land om de faller i och drunknar efter 10 sekunder i vatten om de inte kommer upp. Drunkning ger en fårdel och 1–3 ullblock. Fårens stridsvärden finns tillsammans med övriga varelser i `data/combat.json` och F3.
+
+### Debugmaterial och släppa föremål
+Nya debugvärldar börjar med den vanliga nedersta snabbvalsraden och tom ryggsäck. Öppna E och välj **Debugmaterial** ovanför receptdelen för att byta till en sökbar katalog med material och föremål. Dra en ikon till valfri ruta; material ger en full stack och verktyg ett exemplar. **Visa recept** växlar tillbaka. Berggrund är fortsatt undantagen och katalogen finns bara i debugläge.
+
+**Q** släpper ett föremål från valt snabbval, **Shift+Q** hela stacken. I en dialog gäller detta föremålet på muspekaren eller rutan under pekaren. Släppta föremål hamnar framför spelaren och behåller eventuellt verktygsslitage. Håller du föremål utanför inventarie-, arbetsbänks-, kist- eller ugnsdialogen och stänger den hamnar de på marken. Föremål som hålls inne i dialogen återförs som tidigare.
+
+Vanlig direkt upphämtning kräver högst 1 meter. Regeln för hela ovansidan av ett block precis intill spelaren finns kvar. Klippt ull måste landa och spelaren måste närma sig den efter klippningen. Kasserade föremål måste också landa och kan inte omedelbart sugas tillbaka.
+
+### Jämnare arbetsfördelning och djurvila
+Nya världar använder 96 meters siktavstånd. Äldre sparningar utan den nya inställningsversionen får högst 96 meter första gången de läses in; därefter sparas egna val som vanligt. Kortare tidigare avstånd behålls. Siktavstånd ändras i Esc-menyn.
+
+Höns och får har förskjutna viloperioder under vanligt strövande, med cirka 40 procent vila. De avslutar pågående steg innan de stannar, vilket gör andelen ungefärlig. Vila avbryts av bete, parning, hot, vatten eller saknat underlag. Zombies vilar bara under vanligt strövande, aldrig under jakt eller strid. Rörelse, fysik och animering fortsätter med ordinarie takt när en varelse rör sig; dyrare beslut sker normalt med 0,25 sekunders mellanrum nära spelaren och 1 sekund längre bort.
+
+Vägval återanvänds tills målet flyttats, nästa steg blockerats eller terrängen ändrats. En gemensam kö prioriterar närliggande varelser och låter väntande sökningar få högre prioritet med tiden. Högst två sökdelar startas per fysiksteg, med cirka 1,5 ms gemensam tidsbudget. Längre sökningar delas upp i ungefär 1 ms-delar. Kontrollen av skyddade rum återanvänder resultat och delar upp längre sökningar; en ofullständig kontroll räknas aldrig som bevis för skydd.
+
+Terrängladdningen prioriterar nära mark och riktningen spelaren tittar åt. Grafik förs in högst en terrängdel per bildruta och kollisionsunderhåll/avlastning fördelas över flera bildrutor, med cirka 2 ms arbetsbudget. En redan påbörjad motoroperation kan ta längre tid än budgeten. Omgivningens arbetslista räknas om vid terrängändring, ändrat siktavstånd eller minst fyra meters förflyttning, inte om och om igen när spelaren står stilla. Säkerhetskontrollen för laddat markunderlag finns kvar.
+
+Prestandarapporterna skiljer nu även på vägval, tillgänglighetskontroll och separation mellan varelser. Ett reproducerbart CPU-test finns i `tools/creature_benchmark.gd` (kör via Godot med `--headless --path . --script res://tools/creature_benchmark.gd`). Det mäter 600 uppdateringar av 36 djur som följer bete och mäter inte grafikkort eller faktisk bildfrekvens.
+
+### Nya hem efter lockning och ungar som följer vuxna
+När bete läggs undan väljs separata, torra hempositioner: får får minst 10 meter mellan hemmen och höns minst 2 meter, samma avstånd som deras naturliga startpositioner. Befintliga hem reserveras också. Djuren går till hemmen utan teleportering. När flera höns släpps tillsammans föredras platser med en torr landyta omkring sig, cirka tre meter in från vatten; om sådan mark inte finns i närheten används torr mark med rätt avstånd. Arbetet fördelas över bildrutor. Pågående hemval och färdiga positioner sparas.
+
+Kycklingar och lamm väljer en vuxen av samma art inom 12 meter och följer den när den rör sig, med cirka två meters följavstånd. Den valda vuxna kan följas tills den är mer än 20 meter bort; därefter letar ungen igen. Bete från spelaren och flykt prioriteras. Höns och kycklingar kan simma efter vuxna, medan får och lamm fortsatt undviker vatten. Följandet upphör vid vuxen ålder eller om den vuxna försvinner.
+
+Höns matas nu med **gräsfrö** för parning, inte själsrest. Högerklick på hönan prioriterar matning framför sådd på marken bakom. Det förbrukas ett frö bara om hönan är redo; hjärtan, parningstid och återhämtning fungerar som tidigare. Får använder fortsatt sädesstrå.
+
+### Nattmonster
+Under natt (22:00–04:00) väljs ett gemensamt beståndsmål på 15–20 zombies och skelett inom 100 meter från spelaren. Husets levande zombies i området räknas med. Nya nattmonster skapas slumpmässigt på torra, fria och mörka platser 40–100 meter från spelaren; ingen får skapas inom 10 meters avstånd från en placerad fackla. Även facklor vars grafik inte är inladdad skyddar. Avstånden mäts i tre dimensioner. Om tillräckligt med giltiga platser saknas, exempelvis ute på havet eller i ett upplyst område, fortsätter sökningen utan att bryta skyddsreglerna.
+
+Nattbeståndet fylls upp över de första sekunderna och nya zombies ersätter förluster under natten. Sökandet har en liten arbetsbudget och högst två nya zombies skapas per uppdatering. De använder samma strid, förföljelse, hinder och vilobeteende som husets zombies, och strövar inom cirka 15 meter från hemmet. Vanliga nattzombies får vid behov nya hem 40–100 meter från spelaren och går dit utan att teleporteras. När jakt påbörjas blir platsen där jakten startade deras nya hem; det behålls tills de dör. Ointresserade zombies utanför 100 meter avvecklas och ersätts kring spelaren. Tidigare jagande zombies kan finnas kvar som vilande data längre bort tills livslängden löper ut.
+
+Varje nattmonster får en slumpad livslängd på 120–300 riktiga sekunder i en igångvarande värld, oberoende av hur snabbt dygnsklockan går eller om den stoppats i F3. Livslängden sparas och tickar inte vidare medan spelet är avstängt. Nattzombies återuppstår inte på sin dödsplats; de ersätts av nya på tillåtna platser. Zombies lämnar själsrester och skelett lämnar sitt artberoende byte. Föremålen faller från mitten och använder vanlig upphämtning och föremålens femminuters livslängd.
+
+Under **gryning 04:00–05:00** får alla levande zombies och skelett slumpade dödstider utspridda över perioden. Inga nya nattzombies skapas då. Husets zombies återkommer sedan med sin vanliga återkomsttid, efter att gryningen är slut. Nya nattzombies börjar skapas nästa natt kl. 22. Denna fas styrs av `CLEANUP_PHASE` i `scripts/core/night_population.gd`.
+
+Testa med **F3 → Natt**. F3 visar antal monster nära spelaren och nattens beståndsmål. Prestandaloggen innehåller även `night_monsters`, `nearby_zombies` och `night_target`.
+
+### Skelett, pilbåge, pilar och benknotor
+Skelett är monster nummer två och utgör cirka en fjärdedel av nyfödda nattmonster; det gemensamma beståndet förblir 15–20. De följer samma regler för mörker, facklor, nattlivslängd och gryning som zombies. De börjar jaga inom 8 meter och slutar vid 16 meter, rör sig som zombies och väljer när möjligt gömställen bakom trädstammar med ett skjutläge vid sidan. Mellan skotten söker de skydd, men bara när ett lämpligt träd med skjutläge hittas.
+
+Skelettet bär bågen i utsträckt arm och lyfter den, drar strängen och siktar innan skott. Fritt skott kan avfyras var sjätte sekund. Pilarna färdas med gravitation längs den bana som valdes när de avfyrades; de följer inte efter spelaren. Spridningen ökar med avstånd och väggar stoppar pilar. Missade pilar som träffar mark eller vägg syns en kort stund och försvinner sedan; de är inte automatiskt extra ammunition.
+
+Stridsvärden finns i `data/combat.json` och F3. Skelett har 45 hälsa och ett sparat individuellt försvar på 0–40, vilket ger 2–3 vanliga stensvärdsträffar. Pilanfall slumpas till 56–105 före försvar, alltså 40–75 hälsopoäng mot spelarens nuvarande grundförsvar 40. Det ger 2–4 träffar till död, med nuvarande mättnadsåterhämtning inräknad. Skydd efter återuppståndelse gäller också mot pilar.
+
+Ett dött skelett lämnar 0–2 benknotor och 0–3 pilar, samt med 20 procents chans en pilbåge med 5–25 procent uthållighet kvar. Bågar är verktyg med 100 användningar som grundtak och tar en egen inventarieplats; pilar och benknotor stackas till 64. De har egna ikoner och modeller och finns i debugmaterialkatalogen.
+
+En upphämtad båge kan användas: välj den och högerklicka för att skjuta i siktets riktning. Varje skott använder en pil ur inventariet och en användning från bågen. Spelarens skottintervall är 1,5 sekunder. Något nytt tillverkningsrecept för båge/pilar har inte införts. Bågslitage, monsterförsvar, skjutläge och pilar i luften sparas med världen. Nytt skelettansikte i den andra monsterindikatorn blinkar vid jakt. Testa via **F3 → Natt**.
+
+### Träd vid nya hus och debugmark
+När en ny världs hus, vattenprov och markarbeten skapas röjs hela naturliga träd vars stam eller krona överlappar arbetsområdet, även kronans delar utanför området eller i en annan terrängdel. Röjningen görs som sparade voxeländringar och ger inga föremål eller fördröjt fallande löv. Separata träd utanför området och redan uttryckligt placerade byggmaterial bevaras. Vanlig trädfällning under spel använder fortsatt sitt vanliga grenverksfall och byte. Korrigeringen gäller ny placering av dessa områden; befintliga världar skrivs inte om.
+
+### Bågskytte
+Välj pilbågen, håll höger musknapp för att spänna och släpp för att skjuta.
+Full laddning nås efter en sekund och ger störst skada och hastighet.
+En pil och en användning av bågen förbrukas först när skottet går.
+Missade pilar sitter kvar i fem minuter; spelarens egna pilar kan återhämtas
+på nära håll även ur väggar. Skelett börjar jaga vid 10 meter och släpper
+vid 20 meter, som zombies, och har nu 90 livspoäng.
+
+F3-tabellen visar artens maxliv. Nya djur och monster börjar med 80–100 %
+av detta värde. Individens variation sparas och behålls när ungdjur växer upp.
+Redan sparade individers kvarvarande liv ändras inte.
+
+Bomullsplantor finns i små grupper på land. Högerklicka med stensax
+för 1–3 bomull; plantan står kvar och återväxer efter slumpmässigt
+1–3 minuter i debug eller 2–5 minuter i spel. Gräv för hand (3 s) eller med
+spade (0,7 s) för 1–2 bomullsskott och 1–3 bomull. Högerklicka med skott på jord/odlingsjord
+för att plantera. Skörd faller till marken före upplockning.
+Stenpilsreceptet ger fyra pilar.

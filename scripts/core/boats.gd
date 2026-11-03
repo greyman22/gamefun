@@ -48,6 +48,7 @@ static func board(world: Node, id: String) -> bool:
 		return false
 	var boat: Node3D=world.entity_system.active[id]
 	world.mounted_boat=id
+	world.player.boat_look_yaw=clampf(wrapf(world.player.rotation.y-boat.rotation.y,-PI,PI),-deg_to_rad(135),deg_to_rad(135))
 	world.player.riding_boat=boat
 	world.player.position=boat.position+Vector3.UP*0.12
 	world.player.velocity=Vector3.ZERO
@@ -66,14 +67,15 @@ static func move(world: Node, delta: float, axis: Vector2) -> void:
 		leave(world)
 		return
 	var boat: Node3D=world.entity_system.active[world.mounted_boat]
-	var direction: Vector3=world.player.global_basis*Vector3(axis.x,0,axis.y)
-	direction.y=0
-	direction=direction.limit_length(1.0)
-	var desired_yaw: float=boat.rotation.y if direction.is_zero_approx() else atan2(-direction.x,-direction.z)
-	# Turning also checks the whole hull so the bow cannot rotate into a bank.
-	var yaw: float=lerp_angle(boat.rotation.y,desired_yaw,minf(1,delta*7))
-	if clear(world.model,boat.position,yaw):
-		boat.rotation.y=yaw
+	# A/D rotate the hull; mouse yaw is a separate look offset.
+	var turn: float= -axis.x*deg_to_rad(85)*delta
+	var turns: int=maxi(1,ceili(absf(turn)/deg_to_rad(3)))
+	for i in range(turns):
+		var yaw: float=boat.rotation.y+turn/turns
+		if clear(world.model,boat.position,yaw):
+			boat.rotation.y=yaw
+	world.player.rotation.y=boat.rotation.y+world.player.boat_look_yaw
+	var direction: Vector3=boat.global_basis.z*clampf(axis.y,-1,1)
 	var movement: Vector3=direction*SPEED*delta
 	var steps: int=maxi(1,ceili(movement.length()/0.1))
 	var start: Vector3=boat.position

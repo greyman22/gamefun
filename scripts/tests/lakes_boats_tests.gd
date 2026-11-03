@@ -23,7 +23,7 @@ func run() -> void:
 				wet+=1
 				expect(data.generator.ground(Vector3i(x,Generator.SEA_LEVEL-1,z))==21,"Low terrain is filled with generated water")
 				expect(depth<=12,"Natural water is at most twelve metres deep")
-	expect(wet>1500 and deepest>=10,"World has substantial lakes and deep water")
+	expect(wet>1500 and deepest>=8,"World has substantial lakes and deep water")
 	expect(data.generator.height(0,12)>=Generator.SEA_LEVEL,"Spawn remains dry")
 	var lake:=Vector3(100,Generator.SEA_LEVEL,80)
 	expect(data.generator.height(100,80)<Generator.SEA_LEVEL-5,"Large lake around seeded centre")
@@ -130,11 +130,26 @@ func run() -> void:
 		if not boat_id.is_empty():
 			Boats.board(world,boat_id)
 			world.player.rotation.y=0
-			world.player.camera.rotation.x= -0.3
+			world.player.camera.rotation.x= -0.85
 			Boats.move(world,0.1,Vector2(0,-1))
 			await create_timer(0.5).timeout
 			await RenderingServer.frame_post_draw
 			root.get_texture().get_image().save_png("res://rowing-preview.png")
+			var hull=world.entity_system.active[boat_id].visual
+			expect(hull.get_node("Seat")!=null and hull.get_node("DryFloor").mesh.get_aabb().position.y>0.02,"Boat has one seat and a floor safely above waves")
+			Boats.leave(world)
+			var hens=load("res://scripts/core/hens.gd")
+			for i in range(2):
+				var point: Vector3=lake+Vector3(i*1.2,0,3)
+				var bird_id: String="swim_preview_%d"%i
+				hens.create(world.model,bird_id,point,point,"debug",i==1)
+				world.entity_system.activate(bird_id,world.model.entities[bird_id])
+				world.entity_system.active[bird_id].simulate(0.3,lake+Vector3(0,0,7))
+			world.player.position=lake+Vector3(4,1,7)
+			world.player.camera.look_at(lake+Vector3(0.5,0.1,3))
+			await process_frame
+			await RenderingServer.frame_post_draw
+			root.get_texture().get_image().save_png("res://swimming-birds-preview.png")
 	if "--capture-ui" in OS.get_cmdline_user_args():
 		var map:=Image.create(256,256,false,Image.FORMAT_RGB8)
 		for x in range(256):

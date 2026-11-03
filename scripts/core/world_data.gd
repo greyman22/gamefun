@@ -18,6 +18,7 @@ var world_id: String
 var edits: Dictionary = {}
 var revisions: Dictionary = {}
 var cache: Dictionary = {}
+var sample_cache: Dictionary={}
 var entities: Dictionary = {}
 var containers: Dictionary = {}
 var landmarks: Dictionary = {}
@@ -174,7 +175,7 @@ func import_state(state: Dictionary) -> bool:
 		return false
 	if not state.ids is Dictionary or not state.edits is Dictionary or not state.entities is Dictionary or not state.decay is Dictionary:
 		return false
-	if state.get("generator_version", -1) not in [1,2,Generator.VERSION]:
+	if state.get("generator_version", -1) not in [1,2,3,4,Generator.VERSION]:
 		return false
 	for record: Variant in state.entities.values():
 		if not record is Dictionary or not record.has_all(["type", "position"]) or not record.position is Vector3:
@@ -224,4 +225,31 @@ func import_state(state: Dictionary) -> bool:
 		for cell: Vector3i in containers:
 			Chests.pair(self, cell)
 	revisions.clear()
+	sample_cache.clear()
 	return true
+
+# AI probes outside the decoded cache must not synchronously generate 4096 voxels.
+# Use the same ground/tree ordering and edit precedence as chunk generation.
+func sample_block(cell: Vector3i) -> int:
+	var chunk_key: Vector3i=key(cell)
+	var offset: int=index(cell)
+	if edits.get(chunk_key,{}).has(offset):
+		return int(edits[chunk_key][offset])
+	if cache.has(chunk_key):
+		return cache[chunk_key].decode_u16(offset*2)
+	if sample_cache.has(cell):
+		return int(sample_cache[cell])
+	generator.trim_caches()
+	var value: int=generator.ground(cell)
+	if value==0 and cell.y<=generator.height(cell.x,cell.z)+8:
+		for tree: Dictionary in generator.trees_in_chunk(chunk_key):
+			value=generator.tree_kind(cell,tree)
+			if value!=0:
+				break
+	if sample_cache.size()>=8192:
+		sample_cache.clear()
+	sample_cache[cell]=value
+	return value
+
+func sample_kind(cell: Vector3i) -> String:
+	return Registry.kind(sample_block(cell))

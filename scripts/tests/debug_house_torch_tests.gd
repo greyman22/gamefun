@@ -18,6 +18,10 @@ func run() -> void:
 	var data := Data.new(123)
 	var house: Dictionary = House.new().place(data)
 	var base: Vector3i = house.base
+	for x in range(-1,8):
+		var y: int=4+(4-absi(x-3))/2
+		for z in range(-1,9):
+			expect(data.kind_at(base+Vector3i(x,y,z))=="stone","Debug house has a sloping stone roof")
 	for x in range(1,6):
 		for z in range(1,7):
 			expect(data.kind_at(base+Vector3i(x,0,z))=="planks" and data.kind_at(base+Vector3i(x,4,z))=="planks","Interior floor and ceiling enclose exactly three blocks of height")

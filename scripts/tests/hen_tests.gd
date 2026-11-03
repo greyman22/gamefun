@@ -23,13 +23,14 @@ func run() -> void:
 	Hens.ensure_nearby(data, Vector3(18, 0, 18), "debug")
 	expect(data.entities.size() == original, "Groups must not duplicate on revisit")
 	for record: Dictionary in data.entities.values():
-		expect(record.type == "hen" and Hens.adult(record, 0), "Wild groups begin adult")
+		expect(record.type == "hen", "Wild groups contain adult hens and occasional chicks")
 	for trial in range(40):
 		var interval := Hens.interval("play")
 		expect(interval >= 180 and interval <= 300, "Play egg intervals 3-5 minutes")
 	var homes: Dictionary = {}
 	for record: Dictionary in data.entities.values():
-		homes[record.home] = int(homes.get(record.home, 0)) + 1
+		var group_center: Vector3=record.get("group_center",record.home)
+		homes[group_center] = int(homes.get(group_center, 0)) + 1
 	for count: int in homes.values():
 		expect(count in [3, 4], "Natural flocks contain three or four hens")
 	data = Data.new(123)
@@ -43,10 +44,10 @@ func run() -> void:
 	root.add_child(system)
 	system.activate("a", data.entities.a)
 	system.activate("b", data.entities.b)
-	expect(Hens.feed(data, "a") and not Hens.feed(data, "a"), "Adult accepts one soul remnant per love period")
+	expect(Hens.feed(data, "a") and not Hens.feed(data, "a"), "Adult accepts one grass seed remnant per love period")
 	Hens.tick(system, 0)
 	expect(data.entities.a.partner == "", "Single fed hen must wait for another")
-	expect(Hens.feed(data, "b"), "Second hen accepts soul")
+	expect(Hens.feed(data, "b"), "Second hen accepts seed")
 	Hens.tick(system, 0)
 	expect(data.entities.a.partner == "b", "Nearby fed hens pair")
 	data.advance(2.9)
@@ -99,7 +100,7 @@ func run() -> void:
 	Hens.feed(data, "a")
 	data.game_time += 60
 	Hens.tick(system, 0)
-	expect(Hens.feed(data, "a"), "Love expires and adult accepts another soul")
+	expect(Hens.feed(data, "a"), "Love expires and adult accepts another seed")
 	data.game_time = 1000
 	system.expire_drops()
 	expect(eggs(data).is_empty(), "Expired eggs removed even when inactive")
@@ -118,14 +119,21 @@ func run() -> void:
 	Hens.create(world.model, "chick_preview", Vector3(4.5, 35, 2.5), Vector3(3.5, 35, 2.5), "debug", true)
 	world.entity_system.activate("hen_ray", world.model.entities.hen_ray)
 	world.entity_system.activate("chick_preview", world.model.entities.chick_preview)
-	world.inventory.slots[27] = Registry.stack("soul_remnant", 2)
+	world.inventory.slots[27] = Registry.stack("grass_seed", 2)
 	world.select_hotbar(0)
 	world.player.position = Vector3(3.5, 35, 4.3)
 	world.player.camera.look_at(Vector3(3.5, 35.45, 2.5))
 	await physics_frame
 	await physics_frame
-	expect(world.feed_hen() and world.inventory.slots[27].count == 1, "Right-click ray feeds hen and uses one soul")
-	expect(world.feed_hen() and world.inventory.slots[27].count == 1, "Repeated feed does not waste souls")
+	world.inventory.slots[27]=Registry.stack("soul_remnant",2)
+	expect(not world.feed_hen() and world.inventory.slots[27].count==2,"Soul remnants no longer feed hens")
+	world.inventory.slots[27]=Registry.stack("grass_seed",2)
+	var feed_click:=InputEventMouseButton.new()
+	feed_click.button_index=MOUSE_BUTTON_RIGHT
+	feed_click.pressed=true
+	world._unhandled_input(feed_click)
+	expect(world.model.entities.hen_ray.love_until>world.model.game_time and world.inventory.slots[27].count==1 and not world.planting_held,"Right click feeds hen with one grass seed instead of planting behind it")
+	expect(world.feed_hen() and world.inventory.slots[27].count == 1, "Repeated feed does not waste grass seeds")
 	world.model.entities.hen_ray.love_until = 0.0
 	world.model.set_block(Vector3i(3, 35, 3), "dirt")
 	world.model.set_block(Vector3i(3, 36, 3), "dirt")

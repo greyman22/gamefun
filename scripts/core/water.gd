@@ -43,7 +43,7 @@ func track(cell: Vector3i) -> void:
 		if chunks[key].is_empty():
 			chunks.erase(key)
 func enqueue(cell: Vector3i) -> void:
-	if cell.y< -64 or cell.y>63 or absi(cell.x)>=1024 or absi(cell.z)>=1024 or queued.has(cell):
+	if cell.y< -64 or cell.y>model.generator.max_y() or absi(cell.x)>=model.generator.world_limit() or absi(cell.z)>=model.generator.world_limit() or queued.has(cell):
 		return
 	queued[cell]=true
 	pending.append(cell)
@@ -100,7 +100,7 @@ func tick(delta: float) -> void:
 		elapsed=0
 		process_pending()
 func source(cell: Vector3i) -> bool:
-	if cell.y< -64 or cell.y>63 or absi(cell.x)>=1024 or absi(cell.z)>=1024 or (model.kind_at(cell)!="air" and not wet(model.kind_at(cell))) or model.kind_at(cell)=="water_source":
+	if cell.y< -64 or cell.y>model.generator.max_y() or absi(cell.x)>=model.generator.world_limit() or absi(cell.z)>=model.generator.world_limit() or (model.kind_at(cell)!="air" and not wet(model.kind_at(cell))) or model.kind_at(cell)=="water_source":
 		return false
 	return model.set_block(cell,"water_source")
 func take(cell: Vector3i) -> bool:

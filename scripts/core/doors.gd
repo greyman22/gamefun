@@ -9,7 +9,7 @@ static func entity_id(model: RefCounted, cell: Vector3i) -> String:
 static func can_place(model: RefCounted, cell: Vector3i, kind: String = "door") -> bool:
 	if kind == "gate":
 		return model.block(cell)==0 and Registry.cube(model.block(cell+Vector3i.DOWN))
-	return cell.y < 63 and model.block(cell) == 0 and model.block(cell + Vector3i.UP) == 0 and Registry.cube(model.block(cell + Vector3i.DOWN))
+	return cell.y < model.generator.max_y() and model.block(cell) == 0 and model.block(cell + Vector3i.UP) == 0 and Registry.cube(model.block(cell + Vector3i.DOWN))
 static func place(model: RefCounted, cell: Vector3i, yaw: float, kind: String = "door") -> void:
 	model.set_block(cell,kind)
 	if kind == "door":

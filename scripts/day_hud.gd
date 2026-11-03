@@ -82,7 +82,7 @@ func _ready() -> void:
 	add_child(monsters)
 	for definition: Dictionary in definitions:
 		var icon := Label.new()
-		icon.text = "" if definition.type == "zombie" else definition.symbol
+		icon.text = "" if definition.type in ["zombie","skeleton"] else definition.symbol
 		icon.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 		icon.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 		icon.custom_minimum_size = Vector2(38,42)
@@ -91,10 +91,12 @@ func _ready() -> void:
 		frame.custom_minimum_size = Vector2(38,42)
 		monsters.add_child(frame)
 		frame.add_child(icon)
-		if definition.type == "zombie":
+		if definition.type in ["zombie","skeleton"]:
 			var zombie := TextureRect.new()
 			var picture := Image.new()
 			picture.load_svg_from_string('<svg xmlns="http://www.w3.org/2000/svg" width="32" height="40" shape-rendering="crispEdges"><path d="M9 2H23V15H9Z" fill="#71a54b"/><path d="M11 6H15V9H11ZM19 6H22V9H19ZM16 12H21V14H16Z" fill="#203426"/><path d="M8 16H24V29H8Z" fill="#34716a"/><path d="M1 17H8V23H1ZM24 17H31V23H24Z" fill="#71a54b"/><path d="M8 29H15V39H8ZM17 29H24V39H17Z" fill="#62618b"/></svg>')
+			if definition.type=="skeleton":
+				picture.load_svg_from_string('<svg xmlns="http://www.w3.org/2000/svg" width="32" height="40" shape-rendering="crispEdges"><path d="M9 1H23V14H9Z" fill="#e9e3d0"/><path d="M11 5H15V9H11ZM18 5H22V9H18ZM15 11H18V14H15Z" fill="#30343a"/><path d="M14 14H18V29H14ZM9 17H23V20H9ZM9 23H23V26H9ZM8 28H24V31H8ZM9 31H13V40H9ZM19 31H23V40H19ZM4 17H8V29H4ZM24 17H28V29H24Z" fill="#d5cfba"/><path d="M28 14Q36 24 28 34" fill="none" stroke="#9d7142" stroke-width="2"/><path d="M28 14V34" stroke="#f0dfb9"/></svg>')
 			zombie.texture = ImageTexture.create_from_image(picture)
 			zombie.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 			zombie.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
@@ -143,7 +145,7 @@ func refresh(delta: float) -> void:
 			var actor: Node = world.entity_system.active[id]
 			if record.get("state",{}).get("dead",false):
 				continue
-			var behavior: Variant = actor.get("behavior") if record.get("type","") == "zombie" else record.get("state",{}).get("behavior","")
+			var behavior: Variant = actor.get("behavior") if record.get("type","") in ["zombie","skeleton"] else record.get("state",{}).get("behavior","")
 			if behavior == "chase":
 				threats[record.type] = int(threats.get(record.type,0)) + 1
 	for index in range(indicators.size()):

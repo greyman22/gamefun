@@ -12,7 +12,7 @@ static func reload_data() -> bool:
 		if not parsed.actors.has(kind):
 			return false
 	for actor: Dictionary in parsed.actors.values():
-		if not actor.has_all(["name", "defense", "attack", "interval", "reach"]) or float(actor.defense) < 0 or float(actor.attack) < 0 or float(actor.interval) <= 0 or float(actor.reach) <= 0:
+		if float(actor.get("health",100))<=0 or not actor.has_all(["name", "defense", "attack", "interval", "reach"]) or float(actor.defense) < 0 or float(actor.attack) < 0 or float(actor.interval) <= 0 or float(actor.reach) <= 0:
 			return false
 	for weapon: Dictionary in parsed.weapons.values():
 		if not weapon.has_all(["name", "attack_bonus", "interval", "reach"]) or float(weapon.attack_bonus) < 0 or float(weapon.interval) <= 0 or float(weapon.reach) <= 0:
@@ -47,3 +47,16 @@ static func damage(attack: float, defense: float) -> float:
 static func respawn_seconds(mode: String) -> float:
 	initialize()
 	return float(definitions.zombie_respawn.get(mode, 180))
+
+# Initialize once in the persistent record, never when merely reactivating a node.
+static func starting_health(record: Dictionary, kind: String) -> float:
+	var state: Dictionary=record.get("state",{})
+	if not record.has("health_factor"):
+		record.health_factor=1.0 if state.has("health") else randf_range(0.8,1.0)
+	if not state.has("health"):
+		state.health=float(stats(kind).get("health",100))*float(record.health_factor)
+		record.state=state
+	return float(state.health)
+
+static func grown_health(record: Dictionary, kind: String) -> float:
+	return float(stats(kind).health)*float(record.get("health_factor",1.0))

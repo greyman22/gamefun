@@ -1,11 +1,14 @@
 extends "res://scripts/game_ui.gd"
+const PerfLog = preload("res://scripts/core/performance_log.gd")
 const Furnaces=preload("res://scripts/core/furnaces.gd")
 const Farming = preload("res://scripts/core/farming.gd")
 var target_plant: Dictionary = {}
 const INTERACTION_REACH: float = 5.0
 
 const Surfaces = preload("res://scripts/rendering/surface_textures.gd")
+const Cotton=preload("res://scripts/core/cotton.gd")
 const Saplings=preload("res://scripts/core/saplings.gd")
+const DeathDrops=preload("res://scripts/core/death_drops.gd")
 const Boats=preload("res://scripts/core/boats.gd")
 var mounted_boat: String=""
 const WaterSurface=preload("res://scripts/rendering/water_surface.gd")
@@ -19,6 +22,7 @@ var sun_light: DirectionalLight3D
 var moon_light: DirectionalLight3D
 var moon_disc: MeshInstance3D
 var sun_disc: MeshInstance3D
+const SheepLogic=preload("res://scripts/core/sheep.gd")
 const Hens = preload("res://scripts/core/hens.gd")
 const Chests = preload("res://scripts/core/chests.gd")
 const ChestUI = preload("res://scripts/chest_ui.gd")
@@ -45,7 +49,8 @@ var light_elapsed: float = 1
 var daylight_target: float = 1
 var daylight_amount: float = 1
 var testing: bool = false
-var view_distance: int = 96
+const DEFAULT_VIEW_DISTANCE: int=96
+var view_distance: int = DEFAULT_VIEW_DISTANCE
 var autosave_elapsed: float = 0
 var target_cell := Vector3i(0, -1000, 0)
 var build_cell := Vector3i.ZERO
@@ -71,6 +76,8 @@ var vitals_hud: Control
 var combat_debug: PanelContainer
 var combat_previous_paused: bool = false
 var attack_cooldown: float = 0
+var bow_drawing: bool = false
+var bow_charge: float = 0
 var attack_animation: float = 0
 var target_bush: String = ""
 var harvest_target: String = ""
@@ -210,8 +217,8 @@ func create_lighting() -> void:
 	var sun := DirectionalLight3D.new()
 	sun_light = sun
 	sun.rotation_degrees = Vector3(-55, -30, 0)
-	sun.light_energy = 0.55
-	sun.shadow_enabled = true
+	sun.light_energy = 0.0
+	sun.shadow_enabled = false
 	sun.shadow_opacity = 0.25
 	add_child(sun)
 	sun_disc = MeshInstance3D.new()
@@ -236,8 +243,9 @@ func create_lighting() -> void:
 	add_child(moon_disc)
 	moon_disc.hide()
 	moon_light = DirectionalLight3D.new()
+	moon_light.light_energy = 0.0
 	moon_light.light_color = Color(0.6,0.7,1)
-	moon_light.shadow_enabled = true
+	moon_light.shadow_enabled = false
 	moon_light.shadow_opacity = 0.25
 	add_child(moon_light)
 	var sky := WorldEnvironment.new()
@@ -245,8 +253,8 @@ func create_lighting() -> void:
 	environment.background_mode = Environment.BG_COLOR
 	environment.background_color = Color(0.57, 0.78, 0.93)
 	environment.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
-	environment.ambient_light_color = Color(0.86, 0.9, 1)
-	environment.ambient_light_energy = 0.8
+	environment.ambient_light_color = Color.WHITE
+	environment.ambient_light_energy = 0.9
 	environment.fog_enabled = true
 	environment.fog_light_color = Color(0.57, 0.78, 0.93)
 	environment.fog_density = 0.002
@@ -277,6 +285,8 @@ func install_model(data: RefCounted, position: Vector3) -> void:
 	target_bush = ""
 	harvest_press = false
 	model = data
+	if game_mode=="debug":
+		DebugHouse.upgrade_roof(model)
 	player.world_model=model
 	daylight.configure(model)
 	light_elapsed = 1
@@ -297,12 +307,13 @@ func install_model(data: RefCounted, position: Vector3) -> void:
 	player.reset_fall_tracking()
 	player.velocity = Vector3.ZERO
 	player.respawn_position = Vector3(0, model.generator.height(0, 12) + 0.05, 12)
-	player.bounds_radius = Generator.HALF_WORLD - 1.0
+	player.bounds_radius = model.generator.world_limit() - 1.0
 	player.bottom_y = Generator.MIN_Y
 	player.camera.far = view_distance + 16
 	player.movement_blocked = true
 	streamer.warm_start(position)
-	entity_system.tick(position, 1)
+	entity_system.elapsed=1
+	entity_system.tick(position, 0)
 	player.movement_blocked = false
 	player.paused = false
 	player.set_process_unhandled_input(true)
@@ -315,7 +326,10 @@ func install_model(data: RefCounted, position: Vector3) -> void:
 	autosave_elapsed = 0
 
 func new_world(seed_value: int, mode: String = "play") -> void:
+	view_distance=DEFAULT_VIEW_DISTANCE
 	stack_cursor.reset()
+	bow_drawing=false
+	bow_charge=0
 	attack_cooldown = 0
 	attack_animation = 0
 	combat_debug.hide()
@@ -333,13 +347,6 @@ func new_world(seed_value: int, mode: String = "play") -> void:
 			var kind: String = quickbar[index]
 			if not kind.is_empty():
 				inventory.slots[27 + index] = {"kind": kind, "count": 1 if Registry.tool(kind) else mini(64, Registry.stack_limit(kind))}
-		for kind: String in Registry.catalog.items:
-			if quickbar.has(kind) or kind == "bedrock":
-				continue
-			for index in inventory.pickup_order():
-				if index < 27 and inventory.slots[index].count == 0:
-					inventory.slots[index] = {"kind": kind, "count": 1 if Registry.tool(kind) else mini(64, Registry.stack_limit(kind))}
-					break
 	crafting = CraftingScript.new()
 	rebuild_crafting_slots()
 	selected_hotbar = 0
@@ -349,7 +356,7 @@ func new_world(seed_value: int, mode: String = "play") -> void:
 
 func snapshot() -> Dictionary:
 	entity_system.snapshot_active()
-	return {"mode": game_mode, "attack_cooldown": attack_cooldown, "world": model.export_state(), "player": {"boat":mounted_boat,"position": player.position, "rotation": player.rotation, "camera": player.camera.rotation, "velocity": player.velocity, "vitals": player.vitals.snapshot(), "knockback": player.knockback.snapshot(), "fall_peak": player.fall_peak, "airborne": player.airborne}, "inventory": inventory.slots.duplicate(true), "crafting": {"width": crafting.width, "slots": crafting.slots.duplicate(true), "open": player.inventory_open}, "cursor": stack_cursor.held.duplicate(), "selected": selected_hotbar, "view_distance": view_distance}
+	return {"mode": game_mode, "attack_cooldown": attack_cooldown, "world": model.export_state(), "player": {"boat":mounted_boat,"position": player.position, "rotation": player.rotation, "camera": player.camera.rotation, "velocity": player.velocity, "vitals": player.vitals.snapshot(), "knockback": player.knockback.snapshot(), "fall_peak": player.fall_peak, "airborne": player.airborne}, "inventory": inventory.slots.duplicate(true), "crafting": {"width": crafting.width, "slots": crafting.slots.duplicate(true), "open": player.inventory_open}, "cursor": stack_cursor.held.duplicate(), "selected": selected_hotbar, "view_distance": view_distance,"view_distance_policy":1}
 
 func valid_slots(slots: Variant, expected: int, cursor_stack: bool = false) -> bool:
 	if not slots is Array or slots.size() != expected:
@@ -402,7 +409,9 @@ func restore_snapshot(saved: Dictionary) -> bool:
 			data.entities.erase(id)
 	attack_cooldown = maxf(0, float(saved.get("attack_cooldown", 0)))
 	combat_debug.hide()
-	view_distance = clampi(int(saved.get("view_distance", 96)), 32, 192)
+	view_distance = clampi(int(saved.get("view_distance", DEFAULT_VIEW_DISTANCE)), 32, 192)
+	if int(saved.get("view_distance_policy",0))<1:
+		view_distance=mini(view_distance,DEFAULT_VIEW_DISTANCE)
 	inventory = InventoryScript.new()
 	if saved.inventory.size() == 32:
 		# Keep every old row and quickbar position, adding an empty ninth cell.
@@ -551,14 +560,15 @@ func message(text_value: String) -> void:
 	status.text = text_value
 	status_time = 4
 
-func _process(delta: float) -> void:
+func _measured_process(delta: float) -> void:
 	if model == null:
 		return
+	update_bow_charge(delta)
 	update_cursor_visual()
 	update_daylight(delta)
 	day_hud.refresh(delta)
 	update_house_marker()
-	streamer.tick(player.position, delta)
+	streamer.tick(player.position, delta, -player.camera.global_basis.z)
 	entity_system.tick(player.position, delta)
 	var predicted: Vector3 = player.position + Vector3(player.velocity.x, 0, player.velocity.z) * 0.25
 	player.movement_blocked = not streamer.ready_at(player.position) or not streamer.ready_at(predicted)
@@ -577,7 +587,7 @@ func _process(delta: float) -> void:
 	status_time = maxf(0, status_time - delta)
 	status.visible = status_time > 0
 
-func update_daylight(delta: float) -> void:
+func _measuredupdate_daylight(delta: float) -> void:
 	light_elapsed += delta
 	if light_elapsed >= 0.3:
 		light_elapsed = 0
@@ -587,18 +597,19 @@ func update_daylight(delta: float) -> void:
 		var z := floori(point.z)
 		var roof_kind: String = model.kind_at(Vector3i(x,daylight.roof(x,z),z))
 		if point.y >= model.generator.height(x,z) and roof_kind in ["wood","planks","foliage"]:
-			daylight_target = maxf(daylight_target,0.45)
+			daylight_target = 1.0
+		update_torch_lighting()
 	daylight_amount = move_toward(daylight_amount, daylight_target, delta * 1.5)
 	var daylight_strength: float = DayCycle.daylight(model)
 	var sky_color := Color(0.045,0.065,0.13).lerp(Color(0.57,0.78,0.93),daylight_strength)
 	sky_environment.background_color = sky_color
-	sky_environment.ambient_light_energy = lerpf(0.012, lerpf(0.28, 0.8, daylight_strength), daylight_amount)
-	sky_environment.ambient_light_color = Color(0.56,0.65,0.92).lerp(Color(0.86,0.9,1),daylight_strength)
+	sky_environment.ambient_light_energy = lerpf(0.012, lerpf(0.28, 0.9, daylight_strength), daylight_amount)
+	sky_environment.ambient_light_color = Color(0.75,0.8,0.95).lerp(Color.WHITE,daylight_strength)
 	sky_environment.fog_light_color = Color(0.005,0.006,0.008).lerp(sky_color,daylight_amount)
 	var angle: float = (DayCycle.hour(model) - 4.0) / 18.0 * PI
 	var direction := Vector3(cos(angle),sin(angle),-0.35).normalized()
 	sun_light.look_at_from_position(player.position + direction * 100,player.position)
-	sun_light.light_energy = 0.55 * daylight_strength * daylight_amount
+	sun_light.light_energy = 0.0 # Sky disc is visual only; ambient light keeps all faces evenly lit.
 	sun_light.light_color = Color(1,0.65,0.4).lerp(Color(1,0.97,0.9),daylight_strength)
 	# Keep sky bodies safely inside the current camera far plane, even at short view distance.
 	var sky_distance: float = minf(100,player.camera.far * 0.7)
@@ -612,14 +623,14 @@ func update_daylight(delta: float) -> void:
 	moon_disc.scale = Vector3.ONE * sky_distance / 100.0
 	moon_disc.visible = night_hour < 7
 	moon_light.look_at_from_position(player.position + moon_direction * 100,player.position)
-	moon_light.light_energy = 0.1 * (1.0 - daylight_strength) * daylight_amount if night_hour < 7 else 0.0
+	moon_light.light_energy = 0.0
 	sky_environment.fog_density = lerpf(0.012, 0.002, daylight_amount)
 	sky_environment.fog_light_color=Color(0.57,0.78,0.93)
 	if model.water.contains(player.camera.global_position):
 		sky_environment.fog_density=0.18
 		sky_environment.fog_light_color=Color(0.08,0.28,0.39)
 
-func _physics_process(delta: float) -> void:
+func _measured_physics_process(delta: float) -> void:
 	if model == null:
 		return
 	can_build = false
@@ -642,10 +653,12 @@ func _physics_process(delta: float) -> void:
 	model.advance(delta)
 	DayCycle.advance(model, delta, game_mode == "debug")
 	player.vitals.tick(delta)
+	player.vitals.breathe(delta,model.water.contains(player.camera.global_position))
 	attack_cooldown = maxf(0, attack_cooldown - delta)
 	attack_animation = maxf(0, attack_animation - delta)
 	entity_system.simulate_drops(delta)
 	entity_system.seed_lure = player.position if selected_kind() == "grass_seed" else null
+	entity_system.grain_lure = player.position if selected_kind()=="grain" else null
 	entity_system.simulate_actors(delta, player)
 	check_bush_contact(delta)
 	if entity_system.collect(player.position, inventory):
@@ -685,7 +698,7 @@ func _physics_process(delta: float) -> void:
 	elif selected_kind()=="grass_seed":
 		prompt.text = "H\u00f6ger p\u00e5 odlingsjord: s\u00e5"
 	elif not target_bush.is_empty():
-		prompt.text = "Håll vänster: skörda blåbär"
+		prompt.text = "Höger med sax: klipp bomull · Håll vänster utan sax: gräv upp" if model.entities.get(target_bush,{}).get("type","")=="cotton_plant" else "Håll vänster: skörda blåbär"
 	elif model.kind_at(target_cell) in Doors.PARTS:
 		prompt.text = "H\u00f6ger: \u00f6ppna / st\u00e4ng " + ("grind" if model.kind_at(target_cell) in ["gate","gate_open"] else "d\u00f6rr")
 	elif model.kind_at(target_cell) in ["chest","furnace","furnace_lit"]:
@@ -697,7 +710,7 @@ func _physics_process(delta: float) -> void:
 	else:
 		prompt.text = ""
 	if not mounted_boat.is_empty():
-		prompt.text="WASD: ro | Mellanslag: kliv ur båten"
+		prompt.text="W/S: ro | A/D: sväng | Mus: titta | Shift: kliv ur båten"
 	if not testing:
 		autosave_elapsed += delta
 		if autosave_elapsed >= 30:
@@ -705,19 +718,21 @@ func _physics_process(delta: float) -> void:
 			save_game(false)
 
 func respawn_player() -> void:
+	var recovered: int=DeathDrops.spill(self,player.position)
 	Boats.leave(self)
-	if game_mode == "play":
-		inventory = InventoryScript.new()
-		crafting = CraftingScript.new()
-		stack_cursor.reset()
-		rebuild_crafting_slots()
+	inventory = InventoryScript.new()
+	crafting = CraftingScript.new()
+	stack_cursor.reset()
+	rebuild_crafting_slots()
 	player.vitals.reset()
+	bow_drawing=false
+	bow_charge=0
 	attack_cooldown = 0
 	attack_animation = 0
 	combat_debug.hide()
 	player.position = player.respawn_position
 	# Use the current surface at the gathering point if the player has built or dug there.
-	for y in range(Generator.MAX_Y, Generator.MIN_Y - 1, -1):
+	for y in range(model.generator.max_y(), Generator.MIN_Y - 1, -1):
 		if Registry.cube(model.block(Vector3i(0, y, 12))):
 			player.position.y = y + 1.05
 			break
@@ -729,12 +744,13 @@ func respawn_player() -> void:
 	pause_panel.hide()
 	reset_mining()
 	streamer.warm_start(player.position)
-	entity_system.tick(player.position, 1)
+	entity_system.elapsed=1
+	entity_system.tick(player.position, 0)
 	player.movement_blocked = false
 	held_kind = "uninitialized"
 	update_counter()
 	Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
-	message("Du återvände till starten. Utrustningen är kvar." if game_mode == "debug" else "Du återvände till återsamlingsplatsen utan utrustning.")
+	message("Du återvände utan utrustning. Föremål finns på torr mark nära dödsplatsen." if recovered>0 else "Du återvände utan utrustning. Föremålen gick förlorade.")
 
 func combat_line_clear(from: Vector3, to: Vector3) -> bool:
 	var steps: int = maxi(2, ceili(from.distance_to(to) / 0.15))
@@ -754,10 +770,10 @@ func attack_targets(stats: Dictionary) -> Array[String]:
 		var record: Dictionary = model.entities[id]
 		if record.get("state",{}).get("dead",false):
 			continue
-		if record.type != "zombie" and not (record.type == "hen" and selected_kind() in ["stone_sword","axe"]):
+		if record.type not in ["zombie","skeleton","sheep"] and not (record.type == "hen" and selected_kind() in ["stone_sword","axe"]):
 			continue
 		var actor: Node3D = entity_system.active[id]
-		var zombie: bool = record.type == "zombie"
+		var zombie: bool = record.type in ["zombie","skeleton"]
 		# Use body extent, not feet/centre alone, for forgiving melee selection.
 		var radius: float = 0.55 if zombie else 0.35
 		var height: float = 1.95 if zombie else (0.95 if Hens.adult(record,model.game_time) else 0.5)
@@ -786,6 +802,8 @@ func attack_targets(stats: Dictionary) -> Array[String]:
 	return targets
 
 func try_attack() -> bool:
+	if selected_kind()=="bow":
+		return false
 	var stats: Dictionary = Combat.stats("player", selected_kind())
 	var targets: Array[String] = attack_targets(stats)
 	if targets.is_empty():
@@ -799,6 +817,10 @@ func try_attack() -> bool:
 			var defense: float = float(Combat.stats("zombie").defense)
 			if record.type == "hen":
 				defense = float(record.get("defense", Combat.stats("hen").defense)) if Hens.adult(record, model.game_time) else float(Combat.stats("chick").defense)
+			if record.type=="sheep":
+				defense=float(Combat.stats("sheep" if Hens.adult(record,model.game_time) else "lamb").defense)
+			if record.type=="skeleton":
+				defense=float(record.get("defense",Combat.stats("skeleton").defense))
 			var amount: float = Combat.damage(float(stats.attack), defense)
 			total += entity_system.damage_actor(id, amount, Combat.respawn_seconds(game_mode), player.position)
 			if not model.entities.has(id) or model.entities[id].state.get("dead", false):
@@ -842,7 +864,7 @@ func valid_build_cell(cell: Vector3i) -> bool:
 		return false
 	if entity_system.creature_occupies(cell,2 if selected_kind() in ["door","fence"] else 1):
 		return false
-	if absi(cell.x) >= Generator.HALF_WORLD - 1 or absi(cell.z) >= Generator.HALF_WORLD - 1 or cell.y < Generator.MIN_Y or cell.y > Generator.MAX_Y:
+	if absi(cell.x) >= model.generator.world_limit() - 1 or absi(cell.z) >= model.generator.world_limit() - 1 or cell.y < Generator.MIN_Y or cell.y > model.generator.max_y():
 		return false
 	if selected_kind() in ["door","gate"]:
 		if not Doors.can_place(model,cell,selected_kind()) or not Berries.at_cell(model,cell+Vector3i.UP).is_empty():
@@ -863,7 +885,7 @@ func torch_position(cell: Vector3i, _point: Vector3, normal: Vector3) -> Vector3
 func valid_torch_cell(cell: Vector3i, point: Vector3, normal: Vector3) -> bool:
 	if entity_system.creature_occupies(cell):
 		return false
-	if model.block(cell) != 0 or not Berries.at_cell(model, cell).is_empty() or cell.y < Generator.MIN_Y or cell.y > Generator.MAX_Y:
+	if model.block(cell) != 0 or not Berries.at_cell(model, cell).is_empty() or cell.y < Generator.MIN_Y or cell.y > model.generator.max_y():
 		return false
 	var center := torch_position(cell, point, normal)
 	var feet: Vector3 = player.position
@@ -1033,6 +1055,9 @@ func update_harvest(delta: float) -> void:
 	if not mining_held or not model.entities.has(target_bush):
 		reset_mining()
 		return
+	if model.entities[target_bush].type=="cotton_plant":
+		update_cotton_harvest(delta)
+		return
 	harvest_press = true
 	if harvest_target != target_bush:
 		reset_mining()
@@ -1063,7 +1088,7 @@ func update_harvest(delta: float) -> void:
 func update_held_planting() -> bool:
 	if not planting_held:
 		return false
-	if selected_kind() not in ["hoe","grass_seed","blueberry","sapling"]:
+	if selected_kind() not in ["hoe","grass_seed","blueberry","sapling","cotton_shoot"]:
 		planting_held=false
 		return false
 	update_build_preview()
@@ -1086,7 +1111,14 @@ func try_farm_action() -> bool:
 		soil = target_plant.cell+Vector3i.DOWN
 	elif target_normal.y<0.5:
 		return false
-	if selected_kind()=="sapling":
+	if selected_kind()=="cotton_shoot":
+		var id: String=Cotton.plant(model,soil+Vector3i.UP,game_mode)
+		if not id.is_empty():
+			inventory.take_from_slot(27+selected_hotbar)
+			entity_system.activate(id,model.entities[id])
+			update_counter()
+			return true
+	elif selected_kind()=="sapling":
 		var id: String=Saplings.plant(model,soil+Vector3i.UP,game_mode)
 		if not id.is_empty():
 			inventory.take_from_slot(27+selected_hotbar)
@@ -1182,6 +1214,11 @@ func _input(event: InputEvent) -> void:
 		if event is InputEventKey and event.keycode == KEY_ESCAPE:
 			get_viewport().set_input_as_handled()
 		return
+	if event is InputEventKey and event.pressed and not event.echo and event.physical_keycode==KEY_Q:
+		if not get_viewport().gui_get_focus_owner() is LineEdit and not combat_debug.visible and (player.inventory_open or not player.paused):
+			drop_selected_stack(event.shift_pressed)
+			get_viewport().set_input_as_handled()
+			return
 	if chest_ui.visible:
 		if event is InputEventKey and event.pressed and not event.echo and (event.physical_keycode == KEY_E or event.keycode == KEY_ESCAPE):
 			chest_ui.close()
@@ -1220,7 +1257,7 @@ func _input(event: InputEvent) -> void:
 			get_viewport().set_input_as_handled()
 
 func feed_hen() -> bool:
-	if selected_kind() != "soul_remnant":
+	if selected_kind() not in ["grass_seed","grain","stone_shears"]:
 		return false
 	var from: Vector3 = player.camera.global_position
 	var query := PhysicsRayQueryParameters3D.create(from, from - player.camera.global_basis.z * 3.0, 9, [player.get_rid()])
@@ -1232,22 +1269,36 @@ func feed_hen() -> bool:
 	if not actor.has_meta("entity_id"):
 		return false
 	var id: String = actor.get_meta("entity_id")
-	if not model.entities.has(id) or model.entities[id].type != "hen":
+	if not model.entities.has(id) or model.entities[id].type not in ["hen","sheep"]:
 		return false
 	if not combat_line_clear(from, actor.global_position + Vector3(0, 0.4, 0)):
+		return false
+	var species: String=model.entities[id].type
+	if species=="sheep" and selected_kind()=="stone_shears":
+		if SheepLogic.shear(entity_system,id,player.position):
+			var wool_count: int=int(model.entities[id].get("last_shear_yield",0))
+			message("Fåret klippt: %d ullblock föll till marken."%wool_count)
+			wear_selected_tool()
+			update_counter()
+		return true
+	if (species=="hen" and selected_kind()!="grass_seed") or (species=="sheep" and selected_kind()!="grain"):
 		return false
 	if Hens.feed(model, id):
 		inventory.take_from_slot(27 + selected_hotbar)
 		update_counter()
-		message("Hönan fick en själsrest och söker en partner.")
+		message("Fåret söker en partner." if species=="sheep" else "Hönan fick ett gräsfrö och söker en partner.")
 	return true
 
 func _unhandled_input(event: InputEvent) -> void:
-	if event is InputEventKey and event.pressed and event.physical_keycode==KEY_SPACE and not mounted_boat.is_empty() and not player.paused and not player.inventory_open:
+	if event is InputEventKey and event.pressed and (event.physical_keycode==KEY_SHIFT or event.keycode==KEY_SHIFT) and not mounted_boat.is_empty() and not player.paused and not player.inventory_open:
 		Boats.leave(self)
 		get_viewport().set_input_as_handled()
 		return
 	if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_RIGHT and not event.pressed:
+		if bow_drawing:
+			shoot_bow(bow_charge)
+			bow_drawing=false
+			bow_charge=0
 		berry_planting = false
 		planting_held=false
 		planting_last_key=""
@@ -1270,8 +1321,16 @@ func _unhandled_input(event: InputEvent) -> void:
 		if selected_kind()=="boat":
 			launch_boat()
 			return
+		if selected_kind()=="bow":
+			begin_bow_draw()
+			return
 		if selected_kind() in ["bucket","water_bucket"]:
 			use_bucket()
+			return
+		if shear_cotton():
+			return
+		if feed_hen():
+			planting_held=false
 			return
 		var from: Vector3 = player.camera.global_position
 		var door_cell: Variant = Doors.pick(entity_system,from,from-player.camera.global_basis.z*INTERACTION_REACH,[player.get_rid()])
@@ -1282,12 +1341,10 @@ func _unhandled_input(event: InputEvent) -> void:
 		if model.kind_at(target_cell) in Furnaces.PARTS:
 			chest_ui.open(target_cell)
 			return
-		if selected_kind() in ["hoe","grass_seed","sapling"]:
+		if selected_kind() in ["hoe","grass_seed","sapling","cotton_shoot"]:
 			planting_held=true
 			planting_last_key=""
 			update_held_planting()
-			return
-		if feed_hen():
 			return
 		if selected_kind() == "blueberry":
 			update_build_preview()
@@ -1358,3 +1415,268 @@ func launch_boat() -> bool:
 	inventory.take_from_slot(27+selected_hotbar)
 	update_counter()
 	return true
+
+func update_torch_lighting() -> void:
+	var sun: float=DayCycle.daylight(model)
+	for node in get_tree().get_nodes_in_group("torch_lights"):
+		if not is_ancestor_of(node):
+			continue
+		var exposed: float=daylight.exposure(node.global_position)
+		# Daylight washes out the local glow outdoors; roofs and tunnels keep it.
+		node.light_energy=0.36*lerpf(1.0,0.035,clampf(sun*exposed,0,1))
+
+func debug_visit_terrain(kind: int, cave: bool=false) -> bool:
+	if game_mode!="debug" or model.generator.version<4:
+		message("Starta en ny debugvärld för att besöka terrängzonerna.")
+		return false
+	var rect: Rect2i=model.generator.zones.nearest_rect(Vector2(player.position.x,player.position.z),kind)
+	var center: Vector2i=rect.get_center()
+	var destination:=Vector3.ZERO
+	var found: bool=false
+	var cave_direction:=Vector3.FORWARD
+	if cave:
+		var tile:=Vector2i(floori(float(center.x)/64),floori(float(center.y)/64))
+		for radius in range(17):
+			for dx in range(-radius,radius+1):
+				for dz in range(-radius,radius+1):
+					if maxi(absi(dx),absi(dz))!=radius:
+						continue
+					var feature: Dictionary=model.generator.cave_for_tile(tile.x+dx,tile.y+dz)
+					if not feature.is_empty():
+						destination=Vector3(feature.center.x+0.5,feature.floor+0.05,feature.center.y+0.5)
+						var look: Vector2=feature.get("look_direction",Vector2(feature.axis))
+						cave_direction=Vector3(look.x,0,look.y)
+						found=true
+						break
+				if found:
+					break
+			if found:
+				break
+	else:
+		# A region centre may be a lake. Search its nearby dry terrain rather
+		# than treating that as an unavailable biome.
+		for radius in range(0,325,12):
+			for i in range(16):
+				var angle: float=TAU*i/16
+				var x: int=center.x+roundi(cos(angle)*radius)
+				var z: int=center.y+roundi(sin(angle)*radius)
+				var y: int=model.generator.height(x,z)
+				if y>=model.generator.SEA_LEVEL and model.kind_at(Vector3i(x,y,z))=="air" and model.kind_at(Vector3i(x,y+1,z))=="air":
+					destination=Vector3(x+0.5,y+0.05,z+0.5)
+					found=true
+					break
+			if found:
+				break
+	if not found:
+		message("Hittade ingen lämplig besöksplats i zonen.")
+		return false
+	Boats.leave(self)
+	if combat_debug.visible:
+		toggle_combat_debug()
+	player.position=destination
+	if cave:
+		player.rotation.y=atan2(-cave_direction.x,-cave_direction.z)
+		player.camera.rotation=Vector3.ZERO
+	player.velocity=Vector3.ZERO
+	player.vitals.reset()
+	player.reset_fall_tracking()
+	player.movement_blocked=true
+	streamer.warm_start(destination)
+	entity_system.elapsed=1
+	entity_system.tick(destination,0)
+	player.movement_blocked=false
+	light_elapsed=1
+	if cave:
+		for index in range(27,36):
+			if inventory.slots[index].kind=="torch":
+				selected_hotbar=index-27
+				update_counter()
+				break
+	message("Besöker bergsgrotta." if cave else "Besöker %s."%model.generator.zones.NAMES[kind].to_lower())
+	return true
+
+func debug_return_home() -> bool:
+	if game_mode!="debug":
+		return false
+	var points: Array[Vector3]=DeathDrops.land_points(model,player.respawn_position,5)
+	if points.is_empty():
+		message("Hittade ingen ledig, torr plats vid starten.")
+		return false
+	points.sort_custom(func(a: Vector3,b: Vector3) -> bool: return a.distance_squared_to(player.respawn_position)<b.distance_squared_to(player.respawn_position))
+	Boats.leave(self)
+	if combat_debug.visible:
+		toggle_combat_debug()
+	player.position=points[0]-Vector3.UP*0.11
+	player.velocity=Vector3.ZERO
+	player.vitals.reset()
+	player.reset_fall_tracking()
+	player.movement_blocked=true
+	streamer.warm_start(player.position)
+	entity_system.elapsed=1
+	entity_system.tick(player.position,0)
+	player.movement_blocked=false
+	light_elapsed=1
+	message("Tillbaka vid starten.")
+	return true
+
+func _process(delta: float) -> void:
+	var stamp: int=PerfLog.begin()
+	_measured_process(delta)
+	PerfLog.finish("world_frame",stamp)
+	if PerfLog.active and model!=null:
+		PerfLog.frame({"position":[player.position.x,player.position.y,player.position.z],"view_distance":view_distance,"chunks":streamer.chunks.size(),"pending_chunks":streamer.tasks.size(),"mode":game_mode,"paused":player.paused,"inventory_open":player.inventory_open,"ai_searches":entity_system.ai_budget.total_searches,"ai_deferred":entity_system.ai_budget.total_deferred,"terrain_installs":streamer.last_installs,"nearby_zombies":entity_system.night_population.nearby_count,"night_target":entity_system.night_population.target_count})
+
+func _physics_process(delta: float) -> void:
+	var stamp: int=PerfLog.begin()
+	_measured_physics_process(delta)
+	PerfLog.finish("world_physics",stamp)
+
+func update_daylight(delta: float) -> void:
+	var stamp: int=PerfLog.begin()
+	_measuredupdate_daylight(delta)
+	PerfLog.finish("lighting",stamp)
+
+# Used by Q and by inventory/storage dialogs when closing with an outside cursor.
+func toss_stack(source: Dictionary, amount: int) -> bool:
+	if source.get("count",0)<=0 or amount<=0:
+		return false
+	amount=mini(amount,int(source.count))
+	var item: Dictionary=Registry.stack(source.kind,amount,source)
+	var forward: Vector3=-player.camera.global_basis.z
+	forward.y=0
+	forward=forward.normalized()
+	if forward.length_squared()<0.01:
+		forward=-player.global_basis.z
+	var origin: Vector3=player.position+Vector3.UP*0.8
+	var point: Vector3=origin
+	# Stop before walls instead of placing discarded items through them.
+	for step in range(1,21):
+		var candidate: Vector3=origin+forward*(step*0.1)
+		if entity_system.drop_overlaps_block(candidate,0.16):
+			break
+		point=candidate
+	var id: String=entity_system.spawn_drop(item.kind,point,amount)
+	var record: Dictionary=model.entities[id]
+	record.item=item
+	record.ready_at=model.game_time+1.0
+	record.ground_before_pickup=true
+	record.needs_approach=true
+	record.collection_origin=player.position
+	record.state.velocity_x=forward.x*0.5
+	record.state.velocity_z=forward.z*0.5
+	source.count-=amount
+	if source.count==0:
+		Registry.clear_slot(source)
+	return true
+
+func drop_selected_stack(all_items: bool=false) -> bool:
+	var target: Dictionary
+	if player.inventory_open:
+		if stack_cursor.held.count>0:
+			target=stack_cursor.held
+		else:
+			var point: Vector2=get_viewport().get_mouse_position()
+			var index: int=chest_ui.pointer_slot(point) if chest_ui.visible else slot_at_pointer(point)
+			if index<0:
+				return false
+			target=stack_cursor.slot(index)
+	else:
+		target=inventory.slots[27+selected_hotbar]
+	stack_cursor.cancel_paint()
+	var dropped: bool=toss_stack(target,int(target.count) if all_items else 1)
+	if dropped:
+		update_counter()
+	return dropped
+
+func drop_outside_cursor(panel: Control) -> void:
+	if stack_cursor.held.count>0 and not panel.get_global_rect().has_point(get_viewport().get_mouse_position()):
+		stack_cursor.cancel_paint()
+		toss_stack(stack_cursor.held,int(stack_cursor.held.count))
+
+func begin_bow_draw() -> void:
+	if player.paused or player.inventory_open or player.movement_blocked:
+		return
+	if inventory.count_item("arrow")<=0:
+		message("Du saknar pilar.")
+		return
+	bow_drawing=true
+	bow_charge=0
+
+func update_bow_charge(delta: float) -> void:
+	if selected_kind()!="bow" or player.paused or player.inventory_open or player.movement_blocked:
+		bow_drawing=false
+		bow_charge=0
+	elif bow_drawing:
+		bow_charge=minf(1,bow_charge+delta)
+
+func shoot_bow(charge: float=1.0) -> bool:
+	if selected_kind()!="bow" or player.paused or player.inventory_open or player.movement_blocked:
+		return false
+	if not inventory.take_item("arrow"):
+		message("Du saknar pilar.")
+		return false
+	var stats: Dictionary=Combat.stats("player","bow")
+	var direction: Vector3=-player.camera.global_basis.z
+	var origin: Vector3=player.camera.global_position+direction*0.35
+	entity_system.Arrows.spawn(entity_system,"player",origin,direction*lerpf(8,28,clampf(charge,0,1)),float(stats.attack)*lerpf(0.25,1,clampf(charge,0,1)),"player",6)
+	attack_cooldown=0
+	wear_selected_tool()
+	update_counter()
+	return true
+
+func update_cotton_harvest(delta: float) -> void:
+	if selected_kind()=="stone_shears":
+		reset_mining()
+		return
+	harvest_press=true
+	var record: Dictionary=model.entities[target_bush]
+	if harvest_target!=target_bush:
+		reset_mining()
+		harvest_target=target_bush
+	var shearing: bool=selected_kind()=="stone_shears"
+	if shearing and model.game_time<float(record.ripe_at):
+		reset_mining()
+		mining_label.text="Bomullen är inte mogen ännu."
+		return
+	var seconds: float=0.7 if selected_kind() in ["shovel","stone_shears"] else 3.0
+	mining_elapsed+=delta
+	mining_bar.show()
+	mining_bar.value=minf(100,mining_elapsed/seconds*100)
+	mining_label.text="Klipper bomull" if shearing else "Gräver upp bomullsplanta"
+	if mining_elapsed<seconds:
+		return
+	finish_cotton_harvest()
+
+func shear_cotton() -> bool:
+	if selected_kind()!="stone_shears":
+		return false
+	update_build_preview()
+	if not model.entities.has(target_bush) or model.entities[target_bush].type!="cotton_plant":
+		return false
+	if model.game_time<float(model.entities[target_bush].ripe_at):
+		message("Bomullen är inte mogen ännu.")
+		return true
+	finish_cotton_harvest()
+	attack_animation=0.3
+	return true
+
+func finish_cotton_harvest() -> void:
+	var record: Dictionary=model.entities[target_bush]
+	var shearing: bool=selected_kind()=="stone_shears"
+	var drops: Dictionary=Cotton.harvest(model,target_bush,selected_kind())
+	for kind: String in drops:
+		var drop: String=entity_system.spawn_drop(kind,record.position+Vector3(0,0.5,0),int(drops[kind]))
+		model.entities[drop].ground_before_pickup=true
+		model.entities[drop].needs_approach=true
+		model.entities[drop].collection_origin=player.position
+	if selected_kind() in ["shovel","stone_shears"]:
+		wear_selected_tool()
+	if shearing:
+		entity_system.active[target_bush].refresh()
+	else:
+		entity_system.deactivate(target_bush)
+		target_bush=""
+		bush_focus.hide()
+	harvest_target=""
+	reset_mining()
+	update_counter()

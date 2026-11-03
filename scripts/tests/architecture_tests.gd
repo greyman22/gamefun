@@ -87,8 +87,8 @@ func check_generation_and_data() -> void:
 	expect(flat.result.vertices < 16 * 16 * 6 * 4, "Greedy meshing must merge adjacent exposed faces")
 	# Decay deadlines survive unloading, save and restore.
 	var tree: Dictionary = {}
-	for x in range(-5, 5):
-		for z in range(-5, 5):
+	for x in range(-30, 30):
+		for z in range(-30, 30):
 			tree = data.generator.tree_info(x, z)
 			if not tree.is_empty():
 				break
@@ -217,7 +217,9 @@ func check_game() -> void:
 	var before_nodes: int = world.get_tree().get_node_count()
 	world.streamer.view_distance = 48
 	world.streamer.refresh_desired(Vector3(120, 0, 120))
-	expect(world.streamer.chunks.size() < 27, "Distant movement must unload old render objects")
+	for frame in range(12):
+		world.streamer.tick(Vector3(120,0,120),0.016)
+	expect(world.streamer.chunks.size() < 27, "Distant movement unloads old render objects across budgeted frames")
 	world.streamer.warm_start(Vector3(0, 0.05, 12))
 	expect(world.model.kind_at(cell) == "air", "Returning to an area must retain edits")
 	for record: Dictionary in world.streamer.chunks.values():

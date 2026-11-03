@@ -44,11 +44,12 @@ func run() -> void:
 	world.daylight_amount = 1
 	world.update_daylight(0)
 	var day_energy: float = world.sky_environment.ambient_light_energy
+	expect(world.sun_light.light_energy==0 and not world.sun_light.shadow_enabled and not world.moon_light.shadow_enabled,"Daylight uses ambient light without directional shadows")
 	var day_rotation: Vector3 = world.sun_light.rotation
 	clock.minute = 0.0
 	world.update_daylight(0)
 	expect(world.sky_environment.ambient_light_energy > 0.1 and world.sky_environment.ambient_light_energy < day_energy,"Night remains visible at lower brightness")
-	expect(world.moon_disc.visible and world.moon_light.light_energy > 0 and world.moon_disc.position.distance_to(world.player.camera.global_position) < world.player.camera.far,"Visible moon lights night inside far plane")
+	expect(world.moon_disc.visible and world.moon_light.light_energy == 0 and world.moon_disc.position.distance_to(world.player.camera.global_position) < world.player.camera.far,"Moon stays visible without directional lighting")
 	expect(world.sun_light.light_energy == 0,"Sun does not shine upward through terrain at night")
 	clock.minute = 360.0
 	world.update_daylight(0)

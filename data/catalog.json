@@ -231,6 +231,12 @@
       "tool": "shovel",
       "tool_seconds": 0.7,
       "seconds": 3.0
+    },
+    "wool": {
+      "id": 31,
+      "name": "Ullblock",
+      "color": "e7e5dc",
+      "seconds": 3.0
     }
   },
   "items": {
@@ -355,6 +361,13 @@
       "stack": 1,
       "max_uses": 100
     },
+    "stone_shears": {
+      "name": "Stensax",
+      "tool": true,
+      "stack": 1,
+      "max_uses": 100,
+      "category": "tools"
+    },
     "grass_seed": {
       "name": "Gräsfrö",
       "stack": 64
@@ -405,6 +418,46 @@
       "name": "Roddbåt",
       "stack": 1,
       "category": "tools"
+    },
+    "wool": {
+      "name": "Ullblock",
+      "block": "wool",
+      "stack": 64
+    },
+    "raw_mutton": {
+      "name": "Fårdel",
+      "stack": 64
+    },
+    "bow": {
+      "name": "Pilbåge",
+      "tool": true,
+      "stack": 1,
+      "max_uses": 100,
+      "category": "tools"
+    },
+    "arrow": {
+      "name": "Stenpil",
+      "stack": 64
+    },
+    "bone": {
+      "name": "Benknota",
+      "stack": 64
+    },
+    "cotton": {
+      "name": "Bomull",
+      "stack": 64
+    },
+    "thread": {
+      "name": "Tråd",
+      "stack": 64
+    },
+    "feather": {
+      "name": "Fjäder",
+      "stack": 64
+    },
+    "cotton_shoot": {
+      "name": "Bomullsskott",
+      "stack": 64
     }
   },
   "recipes": [
@@ -532,6 +585,30 @@
       "pattern": "planks,.,planks/planks,planks,planks",
       "kind": "boat",
       "count": 1
+    },
+    {
+      "width": 2,
+      "pattern": ".,stone/stone,.",
+      "kind": "stone_shears",
+      "count": 1
+    },
+    {
+      "width": 3,
+      "pattern": "cotton,cotton,cotton/cotton,cotton,cotton",
+      "kind": "thread",
+      "count": 1
+    },
+    {
+      "width": 3,
+      "pattern": ".,planks,thread/planks,.,thread/.,planks,thread",
+      "kind": "bow",
+      "count": 1
+    },
+    {
+      "width": 3,
+      "pattern": "stone/stick/feather",
+      "kind": "arrow",
+      "count": 4
     }
   ],
   "actors": {
@@ -568,6 +645,23 @@
     },
     "boat": {
       "active_distance": 96
+    },
+    "sheep": {
+      "active_distance": 64,
+      "body_radius": 0.43,
+      "body_height": 1.15
+    },
+    "skeleton": {
+      "name": "Skelett",
+      "active_distance": 96,
+      "body_radius": 0.34,
+      "body_height": 1.9
+    },
+    "arrow_flight": {
+      "active_distance": 128
+    },
+    "cotton_plant": {
+      "active_distance": 72
     }
   },
   "smelting": {

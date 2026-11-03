@@ -20,18 +20,18 @@ func changed(_cell: Vector3i) -> void:
 func blocks_daylight(value: int) -> bool:
 	# Door windows pass daylight while the closed leaf still blocks bodies
 	# and navigation. Keep the lower wooden panel opaque.
-	return Registry.cube(value) and Registry.kind(value)!="door_top"
+	return Registry.cube(value) and Registry.kind(value) not in ["door_top","foliage"]
 
 func roof(x: int, z: int) -> int:
 	var column := Vector2i(x, z)
 	if columns.has(column):
 		return columns[column]
 	# Query the generator and sparse edits without generating remote chunks above us.
-	var top: int = mini(Generator.MAX_Y, model.generator.height(x, z) + 8)
+	var top: int = mini(model.generator.max_y(), model.generator.height(x, z) + 8)
 	var column_key := Vector3i(floori(float(x) / 16), 0, floori(float(z) / 16))
 	for chunk_key: Vector3i in model.edits:
 		if chunk_key.x == column_key.x and chunk_key.z == column_key.z:
-			top = maxi(top, mini(Generator.MAX_Y, chunk_key.y * 16 + 15))
+			top = maxi(top, mini(model.generator.max_y(), chunk_key.y * 16 + 15))
 	var trees: Array = model.generator.trees_in_chunk(column_key)
 	var highest: int = Generator.MIN_Y - 1
 	for y in range(top, Generator.MIN_Y - 1, -1):
@@ -67,7 +67,8 @@ func exposure(position: Vector3) -> float:
 		cursor += 1
 		var distance: int = distances[cell]
 		if cell.y > roof(cell.x, cell.z):
-			return pow(1.0 - float(distance) / REACH, 3)
+			# Open edges remain fully lit; attenuation begins inside a passage.
+			return pow(clampf(float(REACH-distance)/float(REACH-2),0,1), 3)
 		if distance >= REACH - 1:
 			continue
 		for direction: Vector3i in NEIGHBOURS:
